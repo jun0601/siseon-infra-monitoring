@@ -29,10 +29,9 @@ kube-prometheus-stack (Helm)
 ├── kube-state-metrics → 클러스터 이벤트/상태
 └── Grafana           → 통합 대시보드
         ↓
-Grafana 데이터소스 3개
-├── Prometheus   → 인프라 메트릭 탭
-├── CloudWatch   → 애플리케이션 로그 탭
-└── Azure Monitor → 백업 로그 탭 (AWS 장애 시나리오)
+Grafana 데이터소스
+├── Prometheus   → 인프라 메트릭 (공식 템플릿 + 커스텀)
+└── CloudWatch   → 애플리케이션 로그 (추후 연동)
 ```
 
 ---
@@ -49,11 +48,22 @@ Grafana 데이터소스 3개
 
 ---
 
+## 📊 Grafana 대시보드 구성
+
+| 구분 | 방식 | 대시보드 |
+|------|------|---------|
+| 공식 템플릿 | Grafana Community | Node Exporter Full (ID: 1860) |
+| 공식 템플릿 | Grafana Community | Kubernetes Cluster (ID: 7249) |
+| 공식 템플릿 | Grafana Community | Kubernetes Pod (ID: 6417) |
+| 커스텀 | 직접 제작 | StockOps 인프라 현황 (서비스별 Pod 상태, CPU/메모리, 네트워크) |
+
+---
+
 ## 📁 디렉토리 구조
 
 ```
 siseon-infra-monitoring/
-├── main.tf          # kube-prometheus-stack Helm 배포
+├── main.tf          # kube-prometheus-stack Helm 배포 + 대시보드 provisioning
 ├── providers.tf     # AWS / Kubernetes / Helm Provider 설정
 ├── variables.tf     # 변수 정의
 ├── outputs.tf       # 출력값
@@ -71,7 +81,7 @@ siseon-infra-monitoring/
 | 클러스터 | Amazon EKS (t3.medium x 2) |
 | 모니터링 스택 | kube-prometheus-stack v58.0.0 |
 | 메트릭 수집 | Prometheus + Node Exporter + kube-state-metrics |
-| 시각화 | Grafana |
+| 시각화 | Grafana v10.4.0 |
 | 배포 방식 | Helm (Terraform Helm Provider) |
 
 ---
@@ -83,6 +93,13 @@ siseon-infra-monitoring/
 - AWS CLI + SSO 설정 (`aws configure sso --profile siseon`)
 - EKS 클러스터 구성 완료 (`seoul-cluster`)
 - kubectl 설치
+- helm 설치
+
+### kubeconfig 설정
+
+```bash
+aws eks update-kubeconfig --region ap-northeast-2 --name seoul-cluster --profile siseon
+```
 
 ### 배포
 
@@ -90,43 +107,40 @@ siseon-infra-monitoring/
 # 1. 초기화
 terraform init
 
-# 2. 변수 파일 생성
-cp terraform.tfvars.example terraform.tfvars
-# terraform.tfvars 에 Grafana 비밀번호 입력
-
-# 3. 플랜 확인
+# 2. 플랜 확인
 terraform plan
 
-# 4. 배포
+# 3. 배포 (약 5~10분 소요)
 terraform apply
+```
+
+### 배포 확인
+
+```bash
+# Pod 상태 확인
+kubectl get pods -n monitoring -w
+
+# Grafana LoadBalancer IP 확인
+kubectl get svc -n monitoring kube-prometheus-stack-grafana
 ```
 
 ### Grafana 접속
 
-```bash
-# LoadBalancer 외부 IP 확인
-kubectl get svc -n monitoring kube-prometheus-stack-grafana
-
-# 접속 정보
-# ID: admin
-# PW: terraform.tfvars 에 설정한 값
+```
+URL: http://<EXTERNAL-IP>
+ID : admin
+PW : Siseon2026!
 ```
 
 ### 삭제
 
 ```bash
+# Helm release 먼저 삭제
+helm uninstall kube-prometheus-stack -n monitoring
+
+# Terraform 리소스 삭제
 terraform destroy
 ```
-
----
-
-## 📊 Grafana 대시보드 구성
-
-| 탭 | 데이터소스 | 주요 패널 |
-|----|----------|----------|
-| 인프라 | Prometheus | Pod CPU/메모리, Node 상태, 클러스터 이벤트 |
-| 애플리케이션 | CloudWatch | API 로그, 재고 로그, AI 예측 로그 |
-| Azure 백업 | Azure Monitor | AWS 장애 시 백업 로그 전환 시나리오 |
 
 ---
 
@@ -145,4 +159,5 @@ terraform destroy
 - `terraform.tfvars` 는 Grafana 비밀번호 포함으로 **절대 커밋 금지** (`.gitignore` 처리됨)
 - EKS 클러스터(`seoul-cluster`)가 먼저 배포되어 있어야 함
 - AWS CLI SSO 토큰 만료 시 `aws sso login --profile siseon` 으로 재로그인 필요
-- kube-prometheus-stack은 배포에 약 **5~10분** 소요
+- kube-prometheus-stack 배포에 약 **5~10분** 소요
+- 재배포 시 `helm uninstall` 먼저 실행 후 `terraform apply`
