@@ -18,8 +18,9 @@
 
 ---
 
-## 🏗️ 아키텍처
+## 📊 Grafana 대시보드 구성
 
+<<<<<<< Updated upstream
 ```
 Amazon EKS (seoul-cluster)
         ↓
@@ -37,6 +38,14 @@ AWS NLB (internet-facing)
         ↓
 외부 접속 (브라우저)
 ```
+=======
+| 구분 | 방식 | 대시보드 |
+|------|------|---------|
+| 공식 템플릿 | Grafana Community | Node Exporter Full (ID: 1860) |
+| 공식 템플릿 | Grafana Community | Kubernetes Cluster (ID: 7249) |
+| 공식 템플릿 | Grafana Community | Kubernetes Pod (ID: 6417) |
+| 커스텀 | 직접 제작 | 🏭 StockOps 인프라 현황 |
+>>>>>>> Stashed changes
 
 ---
 
@@ -52,6 +61,7 @@ AWS NLB (internet-facing)
 
 ---
 
+<<<<<<< Updated upstream
 ## 📊 Grafana 대시보드 구성
 
 | 구분 | 방식 | 대시보드 |
@@ -81,6 +91,8 @@ AWS NLB (internet-facing)
 
 ---
 
+=======
+>>>>>>> Stashed changes
 ## 📁 디렉토리 구조
 
 ```
@@ -130,9 +142,23 @@ aws eks update-kubeconfig --region ap-northeast-2 --name seoul-cluster --profile
 ### 2. 배포
 
 ```bash
+<<<<<<< Updated upstream
 terraform init
 terraform plan
 terraform apply  # 약 10~15분 소요
+=======
+# 1. SSO 로그인
+aws sso login --profile siseon
+
+# 2. 초기화
+terraform init
+
+# 3. 플랜 확인
+terraform plan
+
+# 4. 배포 (약 10~15분 소요)
+terraform apply
+>>>>>>> Stashed changes
 ```
 
 ### 3. 배포 확인
@@ -153,6 +179,7 @@ ID : admin
 PW : terraform.tfvars 에 설정한 값
 ```
 
+<<<<<<< Updated upstream
 ---
 
 ## 🧪 부하 테스트 (k6)
@@ -160,6 +187,9 @@ PW : terraform.tfvars 에 설정한 값
 Grafana 대시보드의 CPU/메모리/네트워크 그래프 변화를 확인하기 위한 부하 테스트입니다.
 
 ### k6 설치
+=======
+### 재배포 시 주의사항
+>>>>>>> Stashed changes
 
 ```bash
 choco install k6 -y
@@ -199,10 +229,24 @@ Grafana **🏭 StockOps 인프라 현황** 대시보드에서 실시간으로 CP
 # 1. Helm release 먼저 삭제
 helm uninstall kube-prometheus-stack -n monitoring
 
+<<<<<<< Updated upstream
 # 2. Terraform state 정리 (재배포 실패 시)
 terraform state rm helm_release.kube_prometheus_stack
 
 # 3. Terraform 리소스 삭제
+=======
+# Terraform state 정리
+terraform state rm helm_release.kube_prometheus_stack
+
+# 재배포
+terraform apply
+```
+
+### 삭제
+
+```bash
+helm uninstall kube-prometheus-stack -n monitoring
+>>>>>>> Stashed changes
 terraform destroy
 ```
 
@@ -222,8 +266,12 @@ terraform destroy
 
 - `terraform.tfvars` 는 Grafana 비밀번호 포함으로 **절대 커밋 금지** (`.gitignore` 처리됨)
 - EKS 클러스터(`seoul-cluster`)가 먼저 배포되어 있어야 함
+<<<<<<< Updated upstream
 - 퍼블릭 서브넷에 `kubernetes.io/role/elb = 1` 태그 필수 (NLB 생성 조건)
 - NLB 외부 노출을 위해 `internet-facing` annotation 필수
+=======
+- EKS 퍼블릭 서브넷에 `kubernetes.io/role/elb = 1` 태그 필수
+>>>>>>> Stashed changes
 - AWS CLI SSO 토큰 만료 시 `aws sso login --profile siseon` 으로 재로그인 필요
 - kube-prometheus-stack 배포에 약 **10~15분** 소요
 - 재배포 시 반드시 `helm uninstall` + `terraform state rm` 후 진행
