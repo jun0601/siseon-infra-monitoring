@@ -1,6 +1,13 @@
 terraform {
   required_version = ">= 1.0"
 
+  backend "s3" {
+    bucket  = "siseon-terraform-state"
+    key     = "monitoring/terraform.tfstate"
+    region  = "ap-northeast-2"
+    profile = "siseon"
+  }
+
   required_providers {
     aws = {
       source  = "hashicorp/aws"
