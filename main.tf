@@ -125,7 +125,6 @@ resource "helm_release" "kube_prometheus_stack" {
                 }
 
                 panels = [
-                  # Row 1: 클러스터 요약
                   {
                     id      = 1
                     title   = "🖥️ 클러스터 CPU 사용률"
@@ -264,24 +263,6 @@ resource "helm_release" "kube_prometheus_stack" {
                       legendFormat = "Pending"
                     }]
                   },
-
-                  # Row 2: StockOps 서비스별 Pod 상태
-                  {
-                    id      = 7
-                    title   = "📋 StockOps 서비스별 Pod 상태"
-                    type    = "table"
-                    gridPos = { x = 0, y = 23, w = 24, h = 5 }
-                    datasource = { type = "prometheus", uid = "prometheus" }
-                    targets = [
-                      {
-                        expr         = "kube_pod_status_phase{namespace='stockops', phase='Running'} == 1"
-                        legendFormat = "{{pod}}"
-                        instant      = true
-                      }
-                    ]
-                  },
-
-                  # Row 3: CPU/메모리 시계열
                   {
                     id      = 8
                     title   = "⚡ StockOps Pod CPU 사용률"
@@ -322,8 +303,6 @@ resource "helm_release" "kube_prometheus_stack" {
                       legendFormat = "{{pod}}"
                     }]
                   },
-
-                  # Row 4: 네트워크
                   {
                     id      = 10
                     title   = "📥 네트워크 수신 트래픽"
@@ -364,8 +343,6 @@ resource "helm_release" "kube_prometheus_stack" {
                       legendFormat = "{{pod}} TX"
                     }]
                   },
-
-                  # Row 5: Pod 재시작 & Node 상태
                   {
                     id      = 12
                     title   = "🔄 Pod 재시작 횟수"
@@ -400,6 +377,20 @@ resource "helm_release" "kube_prometheus_stack" {
                       legendFormat = "{{node}}"
                       instant      = true
                     }]
+                  },
+                  {
+                    id      = 7
+                    title   = "📋 StockOps 서비스별 Pod 상태"
+                    type    = "table"
+                    gridPos = { x = 0, y = 23, w = 24, h = 5 }
+                    datasource = { type = "prometheus", uid = "prometheus" }
+                    targets = [
+                      {
+                        expr         = "kube_pod_status_phase{namespace='stockops', phase='Running'} == 1"
+                        legendFormat = "{{pod}}"
+                        instant      = true
+                      }
+                    ]
                   }
                 ]
               })
@@ -429,38 +420,92 @@ resource "helm_release" "kube_prometheus_stack" {
         enabled = true
         config = {
           global = {
-            smtp_smarthost    = "smtp.gmail.com:587"
-            smtp_from         = "bljh5220@gmail.com"
+            smtp_smarthost     = "smtp.gmail.com:587"
+            smtp_from          = "bljh5220@gmail.com"
             smtp_auth_username = "bljh5220@gmail.com"
             smtp_auth_password = var.gmail_app_password
-            smtp_require_tls  = true
+            smtp_require_tls   = true
           }
           route = {
-            group_by        = ["alertname", "namespace"]
+            group_by        = ["alertname", "instance"]
             group_wait      = "30s"
             group_interval  = "5m"
             repeat_interval = "12h"
-            receiver        = "gmail"
+            receiver        = "blackhole"
             routes = [
               {
-                match    = { severity = "critical" }
-                receiver = "gmail"
-              },
-              {
-                match    = { severity = "warning" }
+                match_re = { alertname = "PodFailed|PodRestartHigh|NodeCPUHigh|NodeMemoryHigh" }
                 receiver = "gmail"
               }
             ]
           }
           receivers = [
             {
+              name = "blackhole"
+            },
+            {
               name = "gmail"
               email_configs = [
                 {
                   to            = "bljh5220@gmail.com"
                   send_resolved = true
-                  subject       = "[StockOps] {{ .GroupLabels.alertname }} - {{ .Status | toUpper }}"
-                  body          = "{{ range .Alerts }}알람: {{ .Annotations.summary }}\n상세: {{ .Annotations.description }}\n심각도: {{ .Labels.severity }}\n시간: {{ .StartsAt }}\n{{ end }}"
+                }
+              ]
+            }
+          ]
+        }
+      }
+
+      additionalPrometheusRulesMap = {
+        stockops-alerts = {
+          groups = [
+            {
+              name = "stockops.pod"
+              rules = [
+                {
+                  alert = "PodFailed"
+                  expr  = "count(kube_pod_status_phase{phase='Failed', namespace='stockops'} == 1) > 0 or count(kube_pod_container_status_waiting_reason{reason='ImagePullBackOff', namespace='stockops'} == 1) > 0"
+                  for   = "1m"
+                  labels = { severity = "critical" }
+                  annotations = {
+                    summary     = "StockOps Pod 장애 발생"
+                    description = "stockops 네임스페이스에 Failed Pod가 있습니다."
+                  }
+                },
+                {
+                  alert = "PodRestartHigh"
+                  expr  = "sum(kube_pod_container_status_restarts_total{namespace='stockops'}) by (pod) > 3"
+                  for   = "1m"
+                  labels = { severity = "warning" }
+                  annotations = {
+                    summary     = "Pod 재시작 횟수 초과"
+                    description = "{{ $labels.pod }} Pod가 3회 이상 재시작했습니다."
+                  }
+                }
+              ]
+            },
+            {
+              name = "stockops.node"
+              rules = [
+                {
+                  alert = "NodeCPUHigh"
+                  expr  = "100 - (avg by(instance) (irate(node_cpu_seconds_total{mode='idle'}[5m])) * 100) > 80"
+                  for   = "3m"
+                  labels = { severity = "critical" }
+                  annotations = {
+                    summary     = "노드 CPU 과부하"
+                    description = "{{ $labels.instance }} 노드 CPU가 80%를 초과했습니다."
+                  }
+                },
+                {
+                  alert = "NodeMemoryHigh"
+                  expr  = "100 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes * 100) > 85"
+                  for   = "3m"
+                  labels = { severity = "critical" }
+                  annotations = {
+                    summary     = "노드 메모리 과부하"
+                    description = "{{ $labels.instance }} 노드 메모리가 85%를 초과했습니다."
+                  }
                 }
               ]
             }
