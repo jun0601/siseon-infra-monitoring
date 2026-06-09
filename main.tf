@@ -148,7 +148,7 @@ resource "helm_release" "kube_prometheus_stack" {
                       }
                     }
                     targets = [{
-                      expr         = "100 - (avg(irate(node_cpu_seconds_total{mode='idle'}[5m])) * 100)"
+                      expr         = "100 - (avg by(instance) (irate(node_cpu_seconds_total{mode='idle'}[5m])) * 100)"
                       legendFormat = "CPU"
                     }]
                   },
@@ -217,7 +217,7 @@ resource "helm_release" "kube_prometheus_stack" {
                       }
                     }
                     targets = [{
-                      expr         = "count(kube_pod_status_phase{phase='Failed', namespace='stockops'}) or vector(0)"
+                      expr         = "count(kube_pod_status_phase{phase='Failed', namespace='stockops'} == 1) or vector(0)"
                       legendFormat = "Failed"
                     }]
                   },
@@ -260,7 +260,7 @@ resource "helm_release" "kube_prometheus_stack" {
                       }
                     }
                     targets = [{
-                      expr         = "count(kube_pod_status_phase{phase='Pending'}) or vector(0)"
+                      expr         = "count(kube_pod_status_phase{phase='Pending', namespace='stockops'} == 1) or vector(0)"
                       legendFormat = "Pending"
                     }]
                   },
@@ -270,12 +270,12 @@ resource "helm_release" "kube_prometheus_stack" {
                     id      = 7
                     title   = "📋 StockOps 서비스별 Pod 상태"
                     type    = "table"
-                    gridPos = { x = 0, y = 5, w = 24, h = 5 }
+                    gridPos = { x = 0, y = 23, w = 24, h = 5 }
                     datasource = { type = "prometheus", uid = "prometheus" }
                     targets = [
                       {
-                        expr         = "kube_pod_status_phase{namespace='stockops'}"
-                        legendFormat = "{{pod}} - {{phase}}"
+                        expr         = "kube_pod_status_phase{namespace='stockops', phase='Running'} == 1"
+                        legendFormat = "{{pod}}"
                         instant      = true
                       }
                     ]
@@ -286,7 +286,7 @@ resource "helm_release" "kube_prometheus_stack" {
                     id      = 8
                     title   = "⚡ StockOps Pod CPU 사용률"
                     type    = "timeseries"
-                    gridPos = { x = 0, y = 8, w = 12, h = 6 }
+                    gridPos = { x = 0, y = 5, w = 12, h = 6 }
                     datasource = { type = "prometheus", uid = "prometheus" }
                     fieldConfig = {
                       defaults = {
@@ -306,7 +306,7 @@ resource "helm_release" "kube_prometheus_stack" {
                     id      = 9
                     title   = "💡 StockOps Pod 메모리 사용량"
                     type    = "timeseries"
-                    gridPos = { x = 12, y = 8, w = 12, h = 6 }
+                    gridPos = { x = 12, y = 5, w = 12, h = 6 }
                     datasource = { type = "prometheus", uid = "prometheus" }
                     fieldConfig = {
                       defaults = {
@@ -328,7 +328,7 @@ resource "helm_release" "kube_prometheus_stack" {
                     id      = 10
                     title   = "📥 네트워크 수신 트래픽"
                     type    = "timeseries"
-                    gridPos = { x = 0, y = 14, w = 12, h = 6 }
+                    gridPos = { x = 0, y = 11, w = 12, h = 6 }
                     datasource = { type = "prometheus", uid = "prometheus" }
                     fieldConfig = {
                       defaults = {
@@ -348,7 +348,7 @@ resource "helm_release" "kube_prometheus_stack" {
                     id      = 11
                     title   = "📤 네트워크 송신 트래픽"
                     type    = "timeseries"
-                    gridPos = { x = 12, y = 14, w = 12, h = 6 }
+                    gridPos = { x = 12, y = 11, w = 12, h = 6 }
                     datasource = { type = "prometheus", uid = "prometheus" }
                     fieldConfig = {
                       defaults = {
@@ -370,7 +370,7 @@ resource "helm_release" "kube_prometheus_stack" {
                     id      = 12
                     title   = "🔄 Pod 재시작 횟수"
                     type    = "table"
-                    gridPos = { x = 0, y = 20, w = 12, h = 6 }
+                    gridPos = { x = 0, y = 17, w = 12, h = 6 }
                     datasource = { type = "prometheus", uid = "prometheus" }
                     targets = [{
                       expr         = "sum(kube_pod_container_status_restarts_total{namespace='stockops'}) by (pod)"
@@ -382,7 +382,7 @@ resource "helm_release" "kube_prometheus_stack" {
                     id      = 13
                     title   = "🟢 Node 상태"
                     type    = "table"
-                    gridPos = { x = 12, y = 20, w = 12, h = 6 }
+                    gridPos = { x = 12, y = 17, w = 12, h = 6 }
                     datasource = { type = "prometheus", uid = "prometheus" }
                     fieldConfig = {
                       defaults = {
