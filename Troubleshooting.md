@@ -225,6 +225,83 @@ aws sso login --profile siseon
 
 ---
 
+## 8. Failed/Pending Pods 대시보드 오류 집계
+
+### 증상
+kubectl get pods 에서 모두 Running인데 대시보드에 Failed 5, Pending 29 표시
+
+### 원인
+PromQL이 현재 상태가 아닌 과거 이벤트까지 집계
+- Pending: 네임스페이스 필터 없어서 전체 클러스터 집계
+- Failed: 배포 시 순간적으로 Failed 거치는 Pod까지 집계
+
+### 해결
+```promql
+# Pending - stockops 네임스페이스 + 현재 상태만
+count(kube_pod_status_phase{phase='Pending', namespace='stockops'} == 1) or vector(0)
+
+# Failed - stockops 네임스페이스 + 현재 상태만
+count(kube_pod_status_phase{phase='Failed', namespace='stockops'} == 1) or vector(0)
+```
+
+### 교훈
+kube_pod_status_phase는 모든 phase 상태를 동시에 가지고 있어 `== 1` 조건으로 현재 상태만 필터링해야 합니다.
+
+---
+
+## 9. Alertmanager 미생성 (enabled = true인데 Pod 없음)
+
+### 증상
+
+kubectl get pods -n monitoring
+→ alertmanager Pod 없음
+
+### 원인
+`additionalPrometheusRulesMap`이 `alertmanagerSpec` 안에 잘못 배치되어 Helm이 인식 못함
+`email_configs`의 `subject`, `body` 필드가 yamlencode 변환 시 Alertmanager YAML 형식과 불일치
+
+### 해결
+1. `additionalPrometheusRulesMap`을 `alertmanager` 블록과 같은 레벨로 분리
+2. `email_configs`에서 `subject`, `body` 제거 후 기본 포맷 사용
+
+### 교훈
+kube-prometheus-stack Helm values에서 `additionalPrometheusRulesMap`은 최상위 레벨에 위치해야 합니다.
+Terraform `yamlencode` 사용 시 Alertmanager YAML 스펙과 필드명이 정확히 일치해야 합니다.
+
+---
+
+## 10. EKS 노이즈 알람 (KubeSchedulerDown 등)
+
+### 증상
+[FIRING] KubeSchedulerDown
+[FIRING] KubeControllerManagerDown
+
+### 원인
+EKS는 컨트롤 플레인(스케줄러, 컨트롤러 매니저)이 AWS 관리라 Prometheus가 메트릭을 수집할 수 없음
+kube-prometheus-stack 기본 알람 룰이 이를 장애로 판단하여 알람 발송
+
+### 해결
+기본 receiver를 `blackhole`로 설정하고 필요한 알람만 gmail로 라우팅:
+```hcl
+route = {
+  receiver = "blackhole"
+  routes = [
+    {
+      match_re = { alertname = "PodFailed|PodRestartHigh|NodeCPUHigh|NodeMemoryHigh" }
+      receiver = "gmail"
+    }
+  ]
+}
+receivers = [
+  { name = "blackhole" },
+  { name = "gmail", email_configs = [...] }
+]
+```
+
+### 교훈
+EKS 환경에서 kube-prometheus-stack 사용 시 컨트롤 플레인 관련 기본 알람은 반드시 억제해야 합니다.
+
+
 ## 📋 트러블슈팅 요약
 
 | # | 문제 | 원인 | 해결 |
@@ -236,3 +313,6 @@ aws sso login --profile siseon
 | 5 | Helm 재배포 불가 | state 충돌 | helm uninstall + terraform state rm |
 | 6 | context deadline exceeded | timeout 부족 | timeout = 900 설정 |
 | 7 | SSO 토큰 만료 | 토큰 유효기간 초과 | aws sso login 재실행 |
+| 8 | Failed/Pending 오류 집계 | 네임스페이스 필터 + 현재 상태 필터 누락 | == 1 조건 + namespace 필터 추가 |
+| 9 | Alertmanager Pod 미생성 | additionalPrometheusRulesMap 위치 오류 + email 필드 불일치 | 레벨 분리 + subject/body 제거 |
+| 10 | EKS 노이즈 알람 | 컨트롤 플레인 메트릭 수집 불가 | blackhole receiver + 필요 알람만 라우팅 |

@@ -173,35 +173,44 @@ PW : terraform.tfvars 에 설정한 값
 
 Grafana 대시보드의 실시간 메트릭 변화를 검증하기 위해 k6 부하 테스트를 수행했습니다.
 
-```javascript
+### k6 설치
+```bash
+winget install k6 --source winget
+```
+
+### 테스트 스크립트 생성 (PowerShell)
+```powershell
+@"
 import http from 'k6/http';
 import { sleep } from 'k6';
 
-export const options = {
-  vus: 10,
-  duration: '30s'
-};
+export const options = { vus: 10, duration: '30s' };
 
 export default function () {
   http.get('http://<ALB_DNS>/api/actuator/health');
   sleep(1);
 }
-```
-
-```bash
-choco install k6 -y
+"@ | Out-File load_test.js -Encoding utf8
 k6 run load_test.js
 ```
 
+### 테스트 결과
+- **⚡ Pod CPU 사용률**: 부하 발생 시 급격한 상승 확인
+- **💡 Pod 메모리 사용량**: 트래픽 증가에 따른 메모리 변화 확인
+- **📥📤 네트워크 트래픽**: 요청/응답 트래픽 실시간 시각화 확인
+
 ---
 
-## 🗑️ 삭제
+### 🚨 Alert Rules
 
-```bash
-helm uninstall kube-prometheus-stack -n monitoring
-terraform state rm helm_release.kube_prometheus_stack
-terraform destroy
-```
+| 알람 | 조건 | 심각도 |
+|------|------|--------|
+| 🔴 PodFailed | stockops Failed/ImagePullBackOff Pod 발생 | critical |
+| 🟡 PodRestartHigh | Pod 재시작 3회 초과 | warning |
+| 🔴 NodeCPUHigh | 노드별 CPU 80% 초과 3분 지속 | critical |
+| 🔴 NodeMemoryHigh | 노드별 메모리 85% 초과 3분 지속 | critical |
+
+노이즈 알람 억제: EKS 컨트롤 플레인 관련 기본 알람(KubeSchedulerDown 등)은 blackhole receiver로 무시
 
 ---
 
