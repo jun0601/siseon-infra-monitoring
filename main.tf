@@ -426,7 +426,46 @@ resource "helm_release" "kube_prometheus_stack" {
       }
 
       alertmanager = {
-        enabled = false
+        enabled = true
+        config = {
+          global = {
+            smtp_smarthost    = "smtp.gmail.com:587"
+            smtp_from         = "bljh5220@gmail.com"
+            smtp_auth_username = "bljh5220@gmail.com"
+            smtp_auth_password = var.gmail_app_password
+            smtp_require_tls  = true
+          }
+          route = {
+            group_by        = ["alertname", "namespace"]
+            group_wait      = "30s"
+            group_interval  = "5m"
+            repeat_interval = "12h"
+            receiver        = "gmail"
+            routes = [
+              {
+                match    = { severity = "critical" }
+                receiver = "gmail"
+              },
+              {
+                match    = { severity = "warning" }
+                receiver = "gmail"
+              }
+            ]
+          }
+          receivers = [
+            {
+              name = "gmail"
+              email_configs = [
+                {
+                  to            = "bljh5220@gmail.com"
+                  send_resolved = true
+                  subject       = "[StockOps] {{ .GroupLabels.alertname }} - {{ .Status | toUpper }}"
+                  body          = "{{ range .Alerts }}알람: {{ .Annotations.summary }}\n상세: {{ .Annotations.description }}\n심각도: {{ .Labels.severity }}\n시간: {{ .StartsAt }}\n{{ end }}"
+                }
+              ]
+            }
+          ]
+        }
       }
 
       nodeExporter = {

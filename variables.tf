@@ -21,3 +21,9 @@ variable "grafana_admin_password" {
   type        = string
   sensitive   = true
 }
+
+variable "gmail_app_password" {
+  description = "Gmail 앱 비밀번호"
+  type        = string
+  sensitive   = true
+}
