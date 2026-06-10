@@ -1,6 +1,6 @@
-# 🔍 StockOps 인프라 모니터링 설계 문서
+# 🔍 StockOps 모니터링 설계 문서
 
-> kube-prometheus-stack 기반 EKS 인프라 모니터링 구성 및 Grafana 커스텀 대시보드 설계 문서
+> kube-prometheus-stack 기반 EKS 모니터링 구성 및 Grafana 대시보드(인프라 / 애플리케이션) 설계 문서
 
 ---
 
@@ -26,6 +26,8 @@ Amazon EKS (seoul-cluster)
                                     ↓
                             외부 접속 (브라우저)
 ```
+
+Grafana는 4개 데이터소스(Prometheus / CloudWatch / Athena / 추후 X-Ray)를 한곳에 모아 인프라·애플리케이션 관측을 단일 창구로 제공한다.
 
 ---
 
@@ -59,95 +61,122 @@ t3.medium(2vCPU, 4GB) 환경에 맞게 보수적으로 설정
 
 ## 📊 Grafana 데이터소스
 
-| 데이터소스 | UID | 용도 |
-|-----------|-----|------|
-| Prometheus | `prometheus` | 인프라 메트릭 (기본) |
-| CloudWatch | `cloudwatch` | 애플리케이션 로그 (추후 연동) |
+| 데이터소스 | UID | 용도 | 비고 |
+|-----------|-----|------|------|
+| Prometheus | `prometheus` | 인프라/앱 메트릭 (기본) | 클러스터 내부 수집 |
+| CloudWatch | `cloudwatch` | 애플리케이션 로그 | api/ai 로그그룹 조회 |
+| Athena | `athena` | IoT 센서 데이터 | `grafana-athena-datasource` 플러그인 |
 
-### 데이터소스 중복 방지 설정
+- Athena 데이터소스는 `siseon-observability`가 생성한 워크그룹(`siseon-sensor-workgroup`)·DB(`stockops_sensor`)를 참조한다. 따라서 observability 레포가 먼저 배포되어야 한다.
+- CloudWatch 데이터소스는 리소스명에 묶이지 않고 region/authType만 필요하므로 로그그룹 생성 순서와 무관하다.
 
-kube-prometheus-stack은 기본적으로 Prometheus 데이터소스를 자동 등록합니다.
-커스텀 데이터소스 설정 시 중복으로 인한 오류를 방지하기 위해 sidecar 설정을 추가합니다.
+### 데이터소스/대시보드 sidecar 비활성화
+
+kube-prometheus-stack의 sidecar가 데이터소스·대시보드를 중복 인식해 충돌(UID 중복)을 일으켜, 직접 provisioning만 사용하도록 sidecar를 끈다.
 
 ```hcl
 sidecar = {
-  datasources = {
-    defaultDatasourceEnabled = false
-  }
+  datasources = { defaultDatasourceEnabled = false }
+  dashboards  = { enabled = false }
 }
 ```
 
 ---
 
+## 📁 대시보드 폴더 구조
+
+발표/운영 관점에 맞춰 대시보드를 **인프라 / 애플리케이션** 2개 폴더로 분리한다.
+
+```
+📊 인프라 모니터링
+  ├ Node Exporter Full (1860)      ← 공식 템플릿
+  ├ Kubernetes Cluster (7249)      ← 공식 템플릿
+  ├ Kubernetes Pods (6417)         ← 공식 템플릿
+  └ 🏭 StockOps 인프라 현황         ← 커스텀
+
+🚀 애플리케이션 모니터링
+  ├ 🌡️ StockOps IoT 센서 현황       ← Athena
+  └ 📜 StockOps 애플리케이션 로그    ← CloudWatch Logs
+```
+
+> IoT 센서/앱 로그는 서버 인프라가 아니라 **비즈니스·애플리케이션 데이터**이므로 인프라 폴더와 분리했다. 같은 `folder` 값을 가진 provider는 하나의 폴더로 합쳐진다.
+
+---
+
 ## 🎨 대시보드 구성 전략
 
-### 설계 의도
-
-범용 인프라 메트릭은 커뮤니티에서 이미 검증된 공식 템플릿을 활용하고,
-StockOps 서비스에 특화된 메트릭(서비스별 Pod 상태, 네트워크 등)은 직접 제작하는 방식을 채택했습니다.
-
-> "검증된 도구는 활용하고, 서비스 특화 부분은 직접 구현한다"
+범용 인프라 메트릭은 검증된 공식 템플릿을 활용하고, StockOps 특화 부분은 직접 제작한다.
 
 | 구분 | 방식 | 이유 |
 |------|------|------|
-| 공식 템플릿 | Grafana Community ID | 노드/클러스터 범용 메트릭은 이미 최적화된 템플릿 활용 |
-| 커스텀 대시보드 | Terraform jsonencode | stockops 네임스페이스 특화, GitOps로 버전 관리 |
-
-### 공식 템플릿 활용
-
-| 대시보드 | gnetId | 용도 |
-|---------|--------|------|
-| Node Exporter Full | 1860 | 노드 상세 메트릭 |
-| Kubernetes Cluster | 7249 | 클러스터 전체 현황 |
-| Kubernetes Pods | 6417 | Pod 상세 메트릭 |
-
-### 커스텀 대시보드 (🏭 StockOps 인프라 현황)
-
-StockOps 서비스에 특화된 대시보드를 직접 제작합니다.
-Terraform `yamlencode` + `jsonencode` 를 활용해 코드로 대시보드를 정의하고
-Grafana provisioning을 통해 배포 시 자동으로 생성됩니다.
+| 공식 템플릿 | Grafana Community ID (1860/7249/6417) | 노드/클러스터 범용 메트릭은 최적화된 템플릿 활용 |
+| 커스텀 대시보드 | Terraform jsonencode | stockops 특화, GitOps로 버전 관리 |
 
 ---
 
 ## 📈 커스텀 대시보드 패널 구성
 
-### Row 1: 클러스터 요약 (Stat/Gauge)
+### 🏭 StockOps 인프라 현황 (Prometheus)
 
-| 패널 | 타입 | PromQL |
-|------|------|--------|
-| 🖥️ 클러스터 CPU 사용률 | gauge | `100 - (avg(irate(node_cpu_seconds_total{mode='idle'}[5m])) * 100)` |
-| 💾 클러스터 메모리 사용률 | gauge | `100 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes * 100)` |
-| ✅ Running Pods | stat | `count(kube_pod_status_phase{phase='Running'})` |
-| 🚨 Failed Pods | stat | `count(kube_pod_status_phase{phase='Failed', namespace='stockops'}) or vector(0)` |
-| 🖧 Node 수 | stat | `count(kube_node_info)` |
-| ⏳ Pending Pods | stat | `count(kube_pod_status_phase{phase='Pending'}) or vector(0)` |
+| Row | 패널 | 타입 |
+|-----|------|------|
+| 1 | 클러스터 CPU/메모리 사용률 | gauge |
+| 1 | Running / Failed / Pending Pods, Node 수 | stat |
+| 2 | Pod CPU / 메모리 사용량 | timeseries |
+| 3 | 네트워크 수신/송신 트래픽 | timeseries |
+| 4 | Pod 재시작 횟수 / Node 상태 | table |
+| 5 | StockOps 서비스별 Pod 상태 | table |
 
-### Row 2: 서비스 상태 (Table)
+> Pod 메모리 패널은 redis(수백 MiB)와 소형 파드(수 MiB) 간 값 차이가 커서 **로그 스케일(`scaleDistribution: log, base 2`)** 을 적용, 모든 파드를 한 화면에서 비교 가능하게 했다.
 
-| 패널 | 타입 | PromQL |
-|------|------|--------|
-| 📋 StockOps 서비스별 Pod 상태 | table | `kube_pod_status_phase{namespace='stockops'}` |
+### 🌡️ StockOps IoT 센서 현황 (Athena)
 
-### Row 3: 리소스 사용량 (Timeseries)
+| 패널 | 타입 | 센서 |
+|------|------|------|
+| 온도 / 습도 / 기압 | timeseries | temperature / humidity / pressure |
+| PM2.5 / PM10 | timeseries | pm25 / pm10 |
+| 도어 상태 / 재실 감지 | stat | door_open / presence_detected |
 
-| 패널 | 타입 | PromQL |
-|------|------|--------|
-| ⚡ Pod CPU 사용률 | timeseries | `sum(rate(container_cpu_usage_seconds_total{namespace='stockops',container!=''}[5m])) by (pod) * 100` |
-| 💡 Pod 메모리 사용량 | timeseries | `sum(container_memory_working_set_bytes{namespace='stockops',container!=''}) by (pod)` |
+- `창고(site_id)` 템플릿 변수로 창고별 필터링. `includeAll = false`로 항상 실제 창고가 선택되게 함.
+- 센서별 고정 색상 지정(온도=red, 습도=blue, 기압=purple, PM2.5=orange, PM10=yellow)으로 구분성 강화.
+- 모든 Athena target에 `connectionArgs`(region/catalog/database) 필수.
 
-### Row 4: 네트워크 (Timeseries)
+### 📜 StockOps 애플리케이션 로그 (CloudWatch Logs)
 
-| 패널 | 타입 | PromQL |
-|------|------|--------|
-| 📥 네트워크 수신 트래픽 | timeseries | `sum(rate(container_network_receive_bytes_total{namespace='stockops'}[5m])) by (pod)` |
-| 📤 네트워크 송신 트래픽 | timeseries | `sum(rate(container_network_transmit_bytes_total{namespace='stockops'}[5m])) by (pod)` |
+| 패널 | 타입 | 내용 |
+|------|------|------|
+| API 로그 (stockops-api) | logs | api 로그그룹 실시간 조회 |
+| AI 로그 (stockops-ai) | logs | ai 로그그룹 실시간 조회 |
+| API 경고/에러 | logs | WARN/ERROR 필터 |
 
-### Row 5: 상태 테이블
+> 로그는 원문 조회·검색용이며, 에러율·응답시간 같은 집계 지표는 로그 파싱이 아니라 메트릭(Prometheus, `/actuator/prometheus`)으로 처리하는 것을 원칙으로 한다.
 
-| 패널 | 타입 | PromQL |
-|------|------|--------|
-| 🔄 Pod 재시작 횟수 | table | `sum(kube_pod_container_status_restarts_total{namespace='stockops'}) by (pod)` |
-| 🟢 Node 상태 | table | `kube_node_status_condition{condition='Ready',status='true'}` |
+---
+
+## 🔐 Grafana IRSA (Athena / CloudWatch Logs 접근)
+
+Grafana가 Athena·CloudWatch Logs 등 AWS 서비스를 호출하려면 IAM 권한이 필요하다. EKS Node Role 방식은 Pod가 IMDS 자격증명을 가져오지 못해 실패하므로, **IRSA**로 Grafana ServiceAccount에 Role을 직접 연결한다.
+
+```hcl
+serviceAccount = {
+  create = true
+  name   = "grafana-athena-sa"
+  annotations = {
+    "eks.amazonaws.com/role-arn" = aws_iam_role.grafana_athena_role.arn
+  }
+}
+```
+
+연결된 정책:
+
+| 정책 | 용도 |
+|------|------|
+| AmazonAthenaFullAccess | IoT 센서 Athena 쿼리 |
+| AWSGlueConsoleFullAccess | Glue 카탈로그 조회 |
+| AmazonS3FullAccess | Athena 쿼리 결과 쓰기 / 센서 원본 읽기 |
+| CloudWatchLogsReadOnlyAccess | 앱 로그 조회 |
+
+> IRSA Role(`seoul-grafana-athena-role`)의 신뢰관계는 OIDC issuer + `system:serviceaccount:monitoring:grafana-athena-sa`로 한정. (트러블슈팅은 observability 레포 참고)
 
 ---
 
@@ -156,32 +185,24 @@ Grafana provisioning을 통해 배포 시 자동으로 생성됩니다.
 대시보드를 코드로 관리하는 핵심 구조입니다.
 
 ```hcl
-# 1. 대시보드 프로바이더 폴더 지정
 dashboardProviders = {
   "dashboardproviders.yaml" = {
-    providers = [{
-      name   = "infra-custom"
-      folder = "📊 인프라 모니터링"
-      type   = "file"
-      options = { path = "/var/lib/grafana/dashboards/infra-custom" }
-    }]
+    providers = [
+      { name = "infra-custom",  folder = "📊 인프라 모니터링",      ... },
+      { name = "iot-custom",    folder = "🚀 애플리케이션 모니터링", ... },
+      { name = "applog-custom", folder = "🚀 애플리케이션 모니터링", ... }
+    ]
   }
 }
 
-# 2. 대시보드 JSON 정의 (jsonencode 사용)
 dashboards = {
-  infra-custom = {
-    stockops-infra = {
-      json = jsonencode({ ... })
-    }
-  }
+  infra-custom  = { stockops-infra  = { json = jsonencode({ ... }) } }
+  iot-custom    = { stockops-iot    = { json = jsonencode({ ... }) } }
+  applog-custom = { stockops-applog = { json = jsonencode({ ... }) } }
 }
 ```
 
-이 방식의 장점:
-- **GitOps**: 대시보드 변경 사항이 Git으로 추적됨
-- **재현 가능**: `terraform apply` 한 번으로 동일한 대시보드 자동 생성
-- **버전 관리**: 대시보드 히스토리 관리 가능
+장점: GitOps(변경 추적), 재현 가능(`terraform apply` 한 번), 버전 관리.
 
 ---
 
@@ -201,13 +222,7 @@ service = {
 ### NLB 동작 흐름
 
 ```
-외부 브라우저
-    ↓ (HTTP:80)
-AWS NLB (internet-facing)
-    ↓ (TCP:30xxx NodePort)
-EKS Worker Node
-    ↓ (TCP:3000)
-Grafana Pod
+외부 브라우저 → AWS NLB(internet-facing) → NodePort → Grafana Pod(3000)
 ```
 
 ### 서브넷 태그 필수 조건
@@ -223,18 +238,14 @@ Grafana Pod
 
 ## 🗄️ Terraform Remote Backend (S3)
 
-### 설계 목적
-
-팀 프로젝트 특성상 학원 PC, 개인 노트북 등 여러 환경에서 작업이 필요했습니다.
-로컬 tfstate는 환경이 바뀔 때마다 상태를 잃거나 충돌이 발생하는 문제가 있었고,
-이를 해결하기 위해 S3 Remote Backend를 도입했습니다.
+팀 프로젝트 특성상 여러 환경(학원 PC/노트북)에서 작업하므로 S3 Remote Backend로 tfstate를 중앙 관리한다.
 
 | 목적 | 설명 |
 |------|------|
 | 팀 협업 | tfstate 중앙 관리로 상태 충돌 방지 |
 | 보안 | 민감 정보 GitHub 노출 차단 |
-| 가용성 | 어느 PC에서든 동일한 상태로 작업 가능 |
-| 복구 | S3 버저닝으로 tfstate 변경 이력 관리 |
+| 가용성 | 어느 PC에서든 동일 상태로 작업 |
+| 복구 | S3 버저닝으로 변경 이력 관리 |
 
 ```hcl
 terraform {
@@ -253,16 +264,11 @@ terraform {
 
 Grafana 대시보드의 실시간 메트릭 변화를 검증하기 위해 k6 부하 테스트를 수행했습니다.
 
-### 테스트 구성
-
 ```javascript
 import http from 'k6/http';
 import { sleep } from 'k6';
 
-export const options = {
-  vus: 10,        // 가상 유저 10명
-  duration: '30s' // 30초 동안
-};
+export const options = { vus: 10, duration: '30s' };
 
 export default function () {
   http.get('http://<ALB_DNS>/api/actuator/health');
@@ -270,38 +276,34 @@ export default function () {
 }
 ```
 
-### 테스트 결과
+부하 발생 시 Pod CPU/메모리/네트워크 트래픽이 대시보드에 실시간 반영되는 것을 확인해 파이프라인 정상 동작을 검증했습니다.
 
-- **⚡ Pod CPU 사용률**: 부하 발생 시 급격한 상승 확인
-- **💡 Pod 메모리 사용량**: 트래픽 증가에 따른 메모리 변화 확인
-- **📥📤 네트워크 트래픽**: 요청/응답 트래픽 실시간 시각화 확인
-
-> Grafana 대시보드에서 부하 테스트 중 메트릭이 실시간으로 반영되는 것을 확인하여
-> 모니터링 파이프라인의 정상 동작을 검증했습니다.
+---
 
 ## 📧 Grafana Alertmanager 이메일 알람
 
 ### 설계 목적
 인프라 임계값 초과 시 관리자(bljh5220@gmail.com)에게 즉시 이메일 알람을 발송합니다.
-관리자가 알람 수신 후 즉시 대응하는 시나리오를 구성합니다.
 
 ### 구성
 
 | 항목 | 값 |
 |------|-----|
 | SMTP 서버 | smtp.gmail.com:587 |
-| 발신 계정 | bljh5220@gmail.com |
-| 수신 계정 | bljh5220@gmail.com |
+| 발신/수신 계정 | bljh5220@gmail.com |
 | 인증 방식 | Gmail 앱 비밀번호 |
 | TLS | 필수 |
 
-### 알람 라우팅
+### 알람 규칙 & 노이즈 억제
 
-| 심각도 | 조건 | 수신자 |
-|--------|------|--------|
-| critical | 즉시 발송 | 관리자 |
-| warning | 즉시 발송 | 관리자 |
-| resolved | 복구 시 발송 | 관리자 |
+| alertname | 심각도 | 조건 |
+|-----------|--------|------|
+| PodFailed | critical | stockops Failed/ImagePullBackOff |
+| PodRestartHigh | warning | 재시작 3회 초과 |
+| NodeCPUHigh | critical | 노드 CPU 80% 초과 (3m) |
+| NodeMemoryHigh | critical | 노드 메모리 85% 초과 (3m) |
+
+> 기본 receiver를 `blackhole`로 두고 위 4개 알람만 `gmail`로 라우팅해 노이즈를 억제한다.
 
 ### 반복 알람 설정
 
