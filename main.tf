@@ -1,3 +1,11 @@
+data "aws_eks_cluster" "seoul" {
+  name = var.cluster_name
+}
+
+locals {
+  eks_oidc_issuer = replace(data.aws_eks_cluster.seoul.identity[0].oidc[0].issuer, "https://", "")
+}
+
 # monitoring 네임스페이스 생성
 resource "kubernetes_namespace" "monitoring" {
   metadata {
@@ -19,6 +27,16 @@ resource "helm_release" "kube_prometheus_stack" {
       grafana = {
         enabled       = true
         adminPassword = var.grafana_admin_password
+        plugins = [
+          "grafana-athena-datasource"
+        ]
+        serviceAccount = {
+          create = true
+          name   = "grafana-athena-sa"
+          annotations = {
+            "eks.amazonaws.com/role-arn" = aws_iam_role.grafana_athena_role.arn
+          }
+        }
 
         service = {
           type = "LoadBalancer"
@@ -34,6 +52,9 @@ resource "helm_release" "kube_prometheus_stack" {
         sidecar = {
           datasources = {
             defaultDatasourceEnabled = false
+          }
+          dashboards = {
+            enabled = false
           }
         }
 
@@ -54,6 +75,18 @@ resource "helm_release" "kube_prometheus_stack" {
                 uid  = "cloudwatch"
                 jsonData = {
                   defaultRegion = "ap-northeast-2"
+                  authType      = "default"
+                }
+              },
+              {
+                name = "Athena"
+                type = "grafana-athena-datasource"
+                uid  = "athena"
+                jsonData = {
+                  defaultRegion = "ap-northeast-2"
+                  catalog       = "AwsDataCatalog"
+                  database      = "stockops_sensor"
+                  workgroup     = "siseon-sensor-workgroup"
                   authType      = "default"
                 }
               }
@@ -85,6 +118,28 @@ resource "helm_release" "kube_prometheus_stack" {
                 editable        = true
                 options = {
                   path = "/var/lib/grafana/dashboards/infra-custom"
+                }
+              },
+{
+                name            = "iot-custom"
+                orgId           = 1
+                folder          = "🚀 애플리케이션 모니터링"
+                type            = "file"
+                disableDeletion = true
+                editable        = true
+                options = {
+                  path = "/var/lib/grafana/dashboards/iot-custom"
+                }
+              },
+              {
+                name            = "applog-custom"
+                orgId           = 1
+                folder          = "🚀 애플리케이션 모니터링"
+                type            = "file"
+                disableDeletion = true
+                editable        = true
+                options = {
+                  path = "/var/lib/grafana/dashboards/applog-custom"
                 }
               }
             ]
@@ -295,6 +350,10 @@ resource "helm_release" "kube_prometheus_stack" {
                         custom = {
                           lineWidth   = 2
                           fillOpacity = 15
+                          scaleDistribution = {
+                            type = "log"
+                            log  = 2
+                          }
                         }
                       }
                     }
@@ -389,6 +448,392 @@ resource "helm_release" "kube_prometheus_stack" {
                         expr         = "kube_pod_status_phase{namespace='stockops', phase='Running'} == 1"
                         legendFormat = "{{pod}}"
                         instant      = true
+                      }
+                    ]
+                  }
+                ]
+              })
+            }
+          },
+          iot-custom = {
+            stockops-iot = {
+              json = jsonencode({
+                title         = "🌡️ StockOps IoT 센서 현황"
+                uid           = "stockops-iot-custom"
+                timezone      = "Asia/Seoul"
+                refresh       = "1m"
+                schemaVersion = 38
+                tags          = ["stockops", "iot", "sensor"]
+                time = {
+                  from = "now-6h"
+                  to   = "now"
+                }
+
+                templating = {
+                  list = [
+                    {
+                      name       = "site_id"
+                      type       = "query"
+                      label      = "창고"
+                      refresh    = 2
+                      datasource = { type = "grafana-athena-datasource", uid = "athena" }
+                      query = {
+                        rawSQL = "SELECT DISTINCT site_id FROM stockops_sensor.sensor_data WHERE year='2026' AND month='06' AND day='10'"
+                        format = 0
+                        connectionArgs = {
+                          region    = "ap-northeast-2"
+                          catalog   = "AwsDataCatalog"
+                          database  = "stockops_sensor"
+                        }
+                      }
+                      includeAll = false
+                      multi      = false
+                    }
+                  ]
+                }
+
+                panels = [
+                  {
+                    id      = 1
+                    title   = "🌡️ 온도 (°C)"
+                    type    = "timeseries"
+                    gridPos = { x = 0, y = 0, w = 8, h = 8 }
+                    datasource = { type = "grafana-athena-datasource", uid = "athena" }
+                    fieldConfig = {
+                      defaults = {
+                        unit = "celsius"
+                        custom = {
+                          lineWidth   = 2
+                          fillOpacity = 15
+                        }
+                        color = {
+                          mode       = "fixed"
+                          fixedColor = "red"
+                        }
+                        thresholds = {
+                          mode = "absolute"
+                          steps = [
+                            { color = "green", value = null },
+                            { color = "yellow", value = 25 },
+                            { color = "red", value = 35 }
+                          ]
+                        }
+                      }
+                    }
+                    targets = [{
+                      rawSQL = "SELECT timestamp AS time, value, sensor_id FROM stockops_sensor.sensor_data WHERE sensor_type='temperature' AND site_id LIKE '%$site_id%' AND year='2026' AND month='06' AND day='10' ORDER BY time"
+                      format = 1
+                      refId  = "A"
+                      connectionArgs = {
+                        region   = "ap-northeast-2"
+                        catalog  = "AwsDataCatalog"
+                        database = "stockops_sensor"
+                      }
+                    }]
+                  },
+                  {
+                    id      = 2
+                    title   = "💧 습도 (%)"
+                    type    = "timeseries"
+                    gridPos = { x = 8, y = 0, w = 8, h = 8 }
+                    datasource = { type = "grafana-athena-datasource", uid = "athena" }
+                    fieldConfig = {
+                      defaults = {
+                        unit = "percent"
+                        custom = {
+                          lineWidth   = 2
+                          fillOpacity = 15
+                        }
+                        color = {
+                          mode       = "fixed"
+                          fixedColor = "blue"
+                        }
+                        thresholds = {
+                          mode = "absolute"
+                          steps = [
+                            { color = "green", value = null },
+                            { color = "yellow", value = 70 },
+                            { color = "red", value = 85 }
+                          ]
+                        }
+                      }
+                    }
+                    targets = [{
+                      rawSQL = "SELECT timestamp AS time, value, sensor_id FROM stockops_sensor.sensor_data WHERE sensor_type='humidity' AND site_id LIKE '%$site_id%' AND year='2026' AND month='06' AND day='10' ORDER BY time"
+                      format = 1
+                      refId  = "A"
+                      connectionArgs = {
+                        region   = "ap-northeast-2"
+                        catalog  = "AwsDataCatalog"
+                        database = "stockops_sensor"
+                      }
+                    }]
+                  },
+                  {
+                    id      = 3
+                    title   = "🔵 기압 (hPa)"
+                    type    = "timeseries"
+                    gridPos = { x = 16, y = 0, w = 8, h = 8 }
+                    datasource = { type = "grafana-athena-datasource", uid = "athena" }
+                    fieldConfig = {
+                      defaults = {
+                        unit = "pressurehpa"
+                        custom = {
+                          lineWidth   = 2
+                          fillOpacity = 15
+                        }
+                        color = {
+                          mode       = "fixed"
+                          fixedColor = "purple"
+                        }
+                      }
+                    }
+                    targets = [{
+                      rawSQL = "SELECT timestamp AS time, value, sensor_id FROM stockops_sensor.sensor_data WHERE sensor_type='pressure' AND site_id LIKE '%$site_id%' AND year='2026' AND month='06' AND day='10' ORDER BY time"
+                      format = 1
+                      refId  = "A"
+                      connectionArgs = {
+                        region   = "ap-northeast-2"
+                        catalog  = "AwsDataCatalog"
+                        database = "stockops_sensor"
+                      }
+                    }]
+                  },
+                  {
+                    id      = 4
+                    title   = "😷 PM2.5 (μg/m³)"
+                    type    = "timeseries"
+                    gridPos = { x = 0, y = 8, w = 12, h = 8 }
+                    datasource = { type = "grafana-athena-datasource", uid = "athena" }
+                    fieldConfig = {
+                      defaults = {
+                        unit = "µg/m³"
+                        custom = {
+                          lineWidth   = 2
+                          fillOpacity = 15
+                        }
+                        color = {
+                          mode       = "fixed"
+                          fixedColor = "orange"
+                        }
+                        thresholds = {
+                          mode = "absolute"
+                          steps = [
+                            { color = "green", value = null },
+                            { color = "yellow", value = 15 },
+                            { color = "orange", value = 35 },
+                            { color = "red", value = 75 }
+                          ]
+                        }
+                      }
+                    }
+                    targets = [{
+                      rawSQL = "SELECT timestamp AS time, value, sensor_id FROM stockops_sensor.sensor_data WHERE sensor_type='pm25' AND site_id LIKE '%$site_id%' AND year='2026' AND month='06' AND day='10' ORDER BY time"
+                      format = 1
+                      refId  = "A"
+                      connectionArgs = {
+                        region   = "ap-northeast-2"
+                        catalog  = "AwsDataCatalog"
+                        database = "stockops_sensor"
+                      }
+                    }]
+                  },
+                  {
+                    id      = 5
+                    title   = "🌫️ PM10 (μg/m³)"
+                    type    = "timeseries"
+                    gridPos = { x = 12, y = 8, w = 12, h = 8 }
+                    datasource = { type = "grafana-athena-datasource", uid = "athena" }
+                    fieldConfig = {
+                      defaults = {
+                        unit = "µg/m³"
+                        custom = {
+                          lineWidth   = 2
+                          fillOpacity = 15
+                        }
+                        color = {
+                          mode       = "fixed"
+                          fixedColor = "yellow"
+                        }
+                        thresholds = {
+                          mode = "absolute"
+                          steps = [
+                            { color = "green", value = null },
+                            { color = "yellow", value = 30 },
+                            { color = "orange", value = 80 },
+                            { color = "red", value = 150 }
+                          ]
+                        }
+                      }
+                    }
+                    targets = [{
+                      rawSQL = "SELECT timestamp AS time, value, sensor_id FROM stockops_sensor.sensor_data WHERE sensor_type='pm10' AND site_id LIKE '%$site_id%' AND year='2026' AND month='06' AND day='10' ORDER BY time"
+                      format = 1
+                      refId  = "A"
+                      connectionArgs = {
+                        region   = "ap-northeast-2"
+                        catalog  = "AwsDataCatalog"
+                        database = "stockops_sensor"
+                      }
+                    }]
+                  },
+                  {   
+                    id      = 6
+                    title   = "🚪 도어 상태"
+                    type    = "stat"
+                    gridPos = { x = 0, y = 16, w = 6, h = 4 }
+                    datasource = { type = "grafana-athena-datasource", uid = "athena" }
+                    fieldConfig = {
+                      defaults = {
+                        unit = "short"
+                        mappings = [
+                          { type = "value", options = { "0" = { text = "닫힘 🔒", color = "green" }, "1" = { text = "열림 🔓", color = "red" } } }
+                        ]
+                        thresholds = {
+                          mode = "absolute"
+                          steps = [
+                            { color = "green", value = null },
+                            { color = "red", value = 1 }
+                          ]
+                        }
+                      }
+                    }
+                    options = {
+                      textMode  = "value"
+                      colorMode = "value"
+                      text = {
+                        valueSize = 36
+                      }
+                    }
+                    targets = [{
+                      rawSQL = "SELECT timestamp AS time, value, sensor_id FROM stockops_sensor.sensor_data WHERE sensor_type='door_open' AND site_id LIKE '%$site_id%' AND year='2026' AND month='06' AND day='10' ORDER BY time DESC LIMIT 1"
+                      format = 0
+                      refId  = "A"
+                      connectionArgs = {
+                        region   = "ap-northeast-2"
+                        catalog  = "AwsDataCatalog"
+                        database = "stockops_sensor"
+                      }
+                    }]
+                  },
+                  {
+                    id      = 7
+                    title   = "👤 재실 감지"
+                    type    = "stat"
+                    gridPos = { x = 6, y = 16, w = 6, h = 4 }
+                    datasource = { type = "grafana-athena-datasource", uid = "athena" }
+                    fieldConfig = {
+                      defaults = {
+                        unit = "short"
+                        mappings = [
+                          { type = "value", options = { "0" = { text = "없음 ⬜", color = "blue" }, "1" = { text = "감지 🟢", color = "green" } } }
+                        ]
+                        thresholds = {
+                          mode = "absolute"
+                          steps = [
+                            { color = "blue", value = null },
+                            { color = "green", value = 1 }
+                          ]
+                        }
+                      }
+                    }
+                    options = {
+                      textMode  = "value"
+                      colorMode = "value"
+                      text = {
+                        valueSize = 36
+                      }
+                    }
+                    targets = [{
+                      rawSQL = "SELECT timestamp AS time, value, sensor_id FROM stockops_sensor.sensor_data WHERE sensor_type='presence_detected' AND site_id LIKE '%$site_id%' AND year='2026' AND month='06' AND day='10' ORDER BY time DESC LIMIT 1"
+                      format = 0
+                      refId  = "A"
+                      connectionArgs = {
+                        region   = "ap-northeast-2"
+                        catalog  = "AwsDataCatalog"
+                        database = "stockops_sensor"
+                      }
+                    }]
+                  }
+                ]
+              })
+            }
+          },
+          applog-custom = {
+            stockops-applog = {
+              json = jsonencode({
+                title         = "📜 StockOps 애플리케이션 로그"
+                uid           = "stockops-applog-custom"
+                timezone      = "Asia/Seoul"
+                refresh       = "30s"
+                schemaVersion = 38
+                tags          = ["stockops", "logs", "application"]
+                time = {
+                  from = "now-1h"
+                  to   = "now"
+                }
+
+                panels = [
+                  {
+                    id      = 2
+                    title   = "📋 API 로그 (stockops-api)"
+                    type    = "logs"
+                    gridPos = { x = 0, y = 0, w = 24, h = 10 }
+                    datasource = { type = "cloudwatch", uid = "cloudwatch" }
+                    options = {
+                      showTime      = true
+                      wrapLogMessage = true
+                      sortOrder     = "Descending"
+                    }
+                    targets = [
+                      {
+                        refId         = "A"
+                        region        = "ap-northeast-2"
+                        logGroupNames = ["/aws/eks/seoul-cluster/stockops/api"]
+                        queryMode     = "Logs"
+                        expression    = "fields @timestamp, @message | sort @timestamp desc | limit 100"
+                      }
+                    ]
+                  },
+                  {
+                    id      = 3
+                    title   = "🤖 AI 로그 (stockops-ai)"
+                    type    = "logs"
+                    gridPos = { x = 0, y = 10, w = 24, h = 10 }
+                    datasource = { type = "cloudwatch", uid = "cloudwatch" }
+                    options = {
+                      showTime      = true
+                      wrapLogMessage = true
+                      sortOrder     = "Descending"
+                    }
+                    targets = [
+                      {
+                        refId         = "A"
+                        region        = "ap-northeast-2"
+                        logGroupNames = ["/aws/eks/seoul-cluster/stockops/ai"]
+                        queryMode     = "Logs"
+                        expression    = "fields @timestamp, @message | sort @timestamp desc | limit 100"
+                      }
+                    ]
+                  },
+                  {
+                    id      = 4
+                    title   = "⚠️ API 경고/에러 (WARN / ERROR)"
+                    type    = "logs"
+                    gridPos = { x = 0, y = 20, w = 24, h = 10 }
+                    datasource = { type = "cloudwatch", uid = "cloudwatch" }
+                    options = {
+                      showTime      = true
+                      wrapLogMessage = true
+                      sortOrder     = "Descending"
+                    }
+                    targets = [
+                      {
+                        refId         = "A"
+                        region        = "ap-northeast-2"
+                        logGroupNames = ["/aws/eks/seoul-cluster/stockops/api"]
+                        queryMode     = "Logs"
+                        expression    = "fields @timestamp, @message | filter @message like /WARN|ERROR/ | sort @timestamp desc | limit 100"
                       }
                     ]
                   }
@@ -524,4 +969,45 @@ resource "helm_release" "kube_prometheus_stack" {
   ]
 
   depends_on = [kubernetes_namespace.monitoring]
+}
+
+# 그라파나 전용 IAM Role (IRSA)
+resource "aws_iam_role" "grafana_athena_role" {
+  name = "seoul-grafana-athena-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Principal = {
+        Federated = "arn:aws:iam::448768137813:oidc-provider/${local.eks_oidc_issuer}"
+      }
+      Action = "sts:AssumeRoleWithWebIdentity"
+      Condition = {
+        StringEquals = {
+          "${local.eks_oidc_issuer}:sub" = "system:serviceaccount:monitoring:grafana-athena-sa"
+        }
+      }
+    }]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "grafana_athena" {
+  role       = aws_iam_role.grafana_athena_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonAthenaFullAccess"
+}
+
+resource "aws_iam_role_policy_attachment" "grafana_glue" {
+  role       = aws_iam_role.grafana_athena_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AWSGlueConsoleFullAccess"
+}
+
+resource "aws_iam_role_policy_attachment" "grafana_s3" {
+  role       = aws_iam_role.grafana_athena_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonS3FullAccess"
+}
+
+resource "aws_iam_role_policy_attachment" "grafana_cloudwatch_logs" {
+  role       = aws_iam_role.grafana_athena_role.name
+  policy_arn = "arn:aws:iam::aws:policy/CloudWatchLogsReadOnlyAccess"
 }
