@@ -478,7 +478,7 @@ resource "helm_release" "kube_prometheus_stack" {
                       refresh    = 2
                       datasource = { type = "grafana-athena-datasource", uid = "athena" }
                       query = {
-                        rawSQL = "SELECT DISTINCT site_id FROM stockops_sensor.sensor_data WHERE year='2026' AND month='06' AND day='10'"
+                        rawSQL = "SELECT DISTINCT site_id FROM stockops_sensor.sensor_data WHERE year='2026' AND month='06'"
                         format = 0
                         connectionArgs = {
                           region    = "ap-northeast-2"
@@ -521,7 +521,7 @@ resource "helm_release" "kube_prometheus_stack" {
                       }
                     }
                     targets = [{
-                      rawSQL = "SELECT timestamp AS time, value, sensor_id FROM stockops_sensor.sensor_data WHERE sensor_type='temperature' AND site_id LIKE '%$site_id%' AND year='2026' AND month='06' AND day='10' ORDER BY time"
+                      rawSQL = "SELECT timestamp AS time, value, sensor_id FROM stockops_sensor.sensor_data WHERE sensor_type='temperature' AND site_id LIKE '%$site_id%' AND year='2026' AND month='06' AND $__timeFilter(timestamp) ORDER BY time"
                       format = 1
                       refId  = "A"
                       connectionArgs = {
@@ -559,7 +559,7 @@ resource "helm_release" "kube_prometheus_stack" {
                       }
                     }
                     targets = [{
-                      rawSQL = "SELECT timestamp AS time, value, sensor_id FROM stockops_sensor.sensor_data WHERE sensor_type='humidity' AND site_id LIKE '%$site_id%' AND year='2026' AND month='06' AND day='10' ORDER BY time"
+                      rawSQL = "SELECT timestamp AS time, value, sensor_id FROM stockops_sensor.sensor_data WHERE sensor_type='humidity' AND site_id LIKE '%$site_id%' AND year='2026' AND month='06' AND $__timeFilter(timestamp) ORDER BY time"
                       format = 1
                       refId  = "A"
                       connectionArgs = {
@@ -589,7 +589,7 @@ resource "helm_release" "kube_prometheus_stack" {
                       }
                     }
                     targets = [{
-                      rawSQL = "SELECT timestamp AS time, value, sensor_id FROM stockops_sensor.sensor_data WHERE sensor_type='pressure' AND site_id LIKE '%$site_id%' AND year='2026' AND month='06' AND day='10' ORDER BY time"
+                      rawSQL = "SELECT timestamp AS time, value, sensor_id FROM stockops_sensor.sensor_data WHERE sensor_type='pressure' AND site_id LIKE '%$site_id%' AND year='2026' AND month='06' AND $__timeFilter(timestamp) ORDER BY time"
                       format = 1
                       refId  = "A"
                       connectionArgs = {
@@ -628,7 +628,7 @@ resource "helm_release" "kube_prometheus_stack" {
                       }
                     }
                     targets = [{
-                      rawSQL = "SELECT timestamp AS time, value, sensor_id FROM stockops_sensor.sensor_data WHERE sensor_type='pm25' AND site_id LIKE '%$site_id%' AND year='2026' AND month='06' AND day='10' ORDER BY time"
+                      rawSQL = "SELECT timestamp AS time, value, sensor_id FROM stockops_sensor.sensor_data WHERE sensor_type='pm25' AND site_id LIKE '%$site_id%' AND year='2026' AND month='06' AND $__timeFilter(timestamp) ORDER BY time"
                       format = 1
                       refId  = "A"
                       connectionArgs = {
@@ -667,7 +667,7 @@ resource "helm_release" "kube_prometheus_stack" {
                       }
                     }
                     targets = [{
-                      rawSQL = "SELECT timestamp AS time, value, sensor_id FROM stockops_sensor.sensor_data WHERE sensor_type='pm10' AND site_id LIKE '%$site_id%' AND year='2026' AND month='06' AND day='10' ORDER BY time"
+                      rawSQL = "SELECT timestamp AS time, value, sensor_id FROM stockops_sensor.sensor_data WHERE sensor_type='pm10' AND site_id LIKE '%$site_id%' AND year='2026' AND month='06' AND $__timeFilter(timestamp) ORDER BY time"
                       format = 1
                       refId  = "A"
                       connectionArgs = {
@@ -706,7 +706,7 @@ resource "helm_release" "kube_prometheus_stack" {
                       }
                     }
                     targets = [{
-                      rawSQL = "SELECT timestamp AS time, value, sensor_id FROM stockops_sensor.sensor_data WHERE sensor_type='door_open' AND site_id LIKE '%$site_id%' AND year='2026' AND month='06' AND day='10' ORDER BY time DESC LIMIT 1"
+                      rawSQL = "SELECT timestamp AS time, value, sensor_id FROM stockops_sensor.sensor_data WHERE sensor_type='door_open' AND site_id LIKE '%$site_id%' AND year='2026' AND month='06' ORDER BY time DESC LIMIT 1"
                       format = 0
                       refId  = "A"
                       connectionArgs = {
@@ -745,7 +745,7 @@ resource "helm_release" "kube_prometheus_stack" {
                       }
                     }
                     targets = [{
-                      rawSQL = "SELECT timestamp AS time, value, sensor_id FROM stockops_sensor.sensor_data WHERE sensor_type='presence_detected' AND site_id LIKE '%$site_id%' AND year='2026' AND month='06' AND day='10' ORDER BY time DESC LIMIT 1"
+                      rawSQL = "SELECT timestamp AS time, value, sensor_id FROM stockops_sensor.sensor_data WHERE sensor_type='presence_detected' AND site_id LIKE '%$site_id%' AND year='2026' AND month='06' ORDER BY time DESC LIMIT 1"
                       format = 0
                       refId  = "A"
                       connectionArgs = {
