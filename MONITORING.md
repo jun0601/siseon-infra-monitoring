@@ -120,14 +120,16 @@ sidecar = {
 
 | Row | 패널 | 타입 |
 |-----|------|------|
-| 1 | 클러스터 CPU/메모리 사용률 | gauge |
-| 1 | Running / Failed / Pending Pods, Node 수 | stat |
-| 2 | Pod CPU / 메모리 사용량 | timeseries |
-| 3 | 네트워크 수신/송신 트래픽 | timeseries |
-| 4 | Pod 재시작 횟수 / Node 상태 | table |
-| 5 | StockOps 서비스별 Pod 상태 | table |
+| 1 | 노드별 CPU / 메모리 사용률 | gauge |
+| 2 | Running / Failed / Pending Pods, Node 수 | stat |
+| 3 | StockOps Pod CPU / 메모리 사용량 | timeseries |
+| 4 | 네트워크 수신/송신 트래픽 | timeseries |
+| 5 | Pod 재시작 횟수 / Node 상태 | table |
+| 6 | StockOps 서비스별 Pod 상태 | table |
 
-> Pod 메모리 패널은 redis(수백 MiB)와 소형 파드(수 MiB) 간 값 차이가 커서 **로그 스케일(`scaleDistribution: log, base 2`)** 을 적용, 모든 파드를 한 화면에서 비교 가능하게 했다.
+- **노드별 게이지**: CPU/메모리를 노드(instance)별 게이지로 표시. 클러스터 평균 1개로 합치면 특정 노드 과부하를 놓칠 수 있어, 오토스케일링으로 노드가 늘어도 노드별로 보이게 했다. `label_replace`로 instance에서 포트(`:9100`)를 떼어 IP만 표기.
+- **Pod 메모리 로그 스케일**: redis(수백 MiB)와 소형 파드(수 MiB) 간 값 차이가 커서 **로그 스케일(`scaleDistribution: log, base 2`)** 을 적용, 모든 파드를 한 화면에서 비교 가능하게 했다.
+- **범례 우측 테이블**: 파드 수가 오토스케일링으로 늘면 하단 범례가 그래프를 잠식하므로, Pod/네트워크 패널의 범례를 우측 테이블(`placement: right`)로 옮기고 현재값·최대값(`lastNotNull`, `max`)을 함께 표시.
 
 ### 🌡️ StockOps IoT 센서 현황 (Athena)
 
@@ -277,6 +279,22 @@ export default function () {
 ```
 
 부하 발생 시 Pod CPU/메모리/네트워크 트래픽이 대시보드에 실시간 반영되는 것을 확인해 파이프라인 정상 동작을 검증했습니다.
+
+---
+
+## 🔄 대시보드 개선 이력
+
+운영하며 발견한 문제를 반복적으로 개선했다. (실시간 데이터 기준 점검 → 수정)
+
+| 문제 발견 | 개선 |
+|----------|------|
+| 클러스터 게이지가 노드 오토스케일링으로 늘어나며 좁아짐 | 노드별 게이지로 전환, 폭 확대(w=12). 한 노드 과부하 감지 가능 |
+| 죽은 노드의 게이지가 잠시 잔상으로 남음 | 게이지를 `avg by(instance)`로 유지하되 노드별 분리, staleness 후 자연 소거 |
+| 게이지 라벨에 포트(`:9100`)가 붙어 지저분 | `label_replace`로 IP만 추출 |
+| 파드 증가로 범례가 그래프를 잠식 | 범례를 우측 테이블로, 현재값·최대값 동시 표기 |
+| IoT 쿼리 날짜 하드코딩(`day='10'`)으로 날짜 변경 시 빈 화면 | `$__timeFilter(timestamp)`로 동적화, 파티션 프로젝션 이점 유지 |
+
+> 모니터링 대상(노드/파드)이 고정이 아니라 오토스케일링으로 변한다는 점을 고려해, "개수가 바뀌어도 레이아웃이 깨지지 않는" 시각화로 수렴시켰다.
 
 ---
 

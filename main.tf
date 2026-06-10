@@ -333,6 +333,13 @@ resource "helm_release" "kube_prometheus_stack" {
                         }
                       }
                     }
+                    options = {
+                      legend = {
+                        displayMode = "table"
+                        placement   = "right"
+                        calcs       = ["lastNotNull", "max"]
+                      }
+                    }
                     targets = [{
                       expr         = "sum(rate(container_cpu_usage_seconds_total{namespace='stockops',container!=''}[5m])) by (pod) * 100"
                       legendFormat = "{{pod}}"
@@ -357,6 +364,13 @@ resource "helm_release" "kube_prometheus_stack" {
                         }
                       }
                     }
+                    options = {
+                      legend = {
+                        displayMode = "table"
+                        placement   = "right"
+                        calcs       = ["lastNotNull", "max"]
+                      }
+                    }
                     targets = [{
                       expr         = "sum(container_memory_working_set_bytes{namespace='stockops',container!=''}) by (pod)"
                       legendFormat = "{{pod}}"
@@ -377,6 +391,13 @@ resource "helm_release" "kube_prometheus_stack" {
                         }
                       }
                     }
+                    options = {
+                      legend = {
+                        displayMode = "table"
+                        placement   = "right"
+                        calcs       = ["lastNotNull", "max"]
+                      }
+                    }
                     targets = [{
                       expr         = "sum(rate(container_network_receive_bytes_total{namespace='stockops'}[5m])) by (pod)"
                       legendFormat = "{{pod}} RX"
@@ -395,6 +416,13 @@ resource "helm_release" "kube_prometheus_stack" {
                           lineWidth   = 2
                           fillOpacity = 15
                         }
+                      }
+                    }
+                    options = {
+                      legend = {
+                        displayMode = "table"
+                        placement   = "right"
+                        calcs       = ["lastNotNull", "max"]
                       }
                     }
                     targets = [{
