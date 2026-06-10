@@ -151,6 +151,17 @@ sidecar = {
 | AI 로그 (stockops-ai) | logs | ai 로그그룹 실시간 조회 |
 | API 경고/에러 | logs | WARN/ERROR 필터 |
 
+**검색어·레벨 필터 (대시보드 변수)**
+
+CloudWatch 콘솔은 로그그룹마다 따로 검색해야 하지만, Grafana는 상단 변수 한 번 입력으로 모든 로그 패널을 동시에 필터링한다. 이것이 콘솔 대신 Grafana로 로그를 보는 핵심 이점이다.
+
+| 변수 | 타입 | 동작 |
+|------|------|------|
+| 🔍 검색어 (`$search`) | textbox | 입력한 키워드가 포함된 로그만 (api/ai/경고 패널 동시 적용). 비우면 전체 |
+| 로그 레벨 (`$level`) | custom | 전체(`.*`) / INFO / WARN / ERROR 선택 |
+
+두 변수는 CloudWatch Logs Insights 쿼리에서 `filter @message like /$level/ and @message like /$search/`로 AND 결합된다. 예: 레벨 `WARN` + 검색어 `MQTT` → WARN이면서 MQTT가 포함된 로그만 표시.
+
 > 로그는 원문 조회·검색용이며, 에러율·응답시간 같은 집계 지표는 로그 파싱이 아니라 메트릭(Prometheus, `/actuator/prometheus`)으로 처리하는 것을 원칙으로 한다.
 
 ---
@@ -293,6 +304,7 @@ export default function () {
 | 게이지 라벨에 포트(`:9100`)가 붙어 지저분 | `label_replace`로 IP만 추출 |
 | 파드 증가로 범례가 그래프를 잠식 | 범례를 우측 테이블로, 현재값·최대값 동시 표기 |
 | IoT 쿼리 날짜 하드코딩(`day='10'`)으로 날짜 변경 시 빈 화면 | `$__timeFilter(timestamp)`로 동적화, 파티션 프로젝션 이점 유지 |
+| 로그 대시보드가 CloudWatch 콘솔 대비 차별점이 약함 | 검색어·레벨 변수 추가, 여러 로그그룹 동시 필터링 |
 
 > 모니터링 대상(노드/파드)이 고정이 아니라 오토스케일링으로 변한다는 점을 고려해, "개수가 바뀌어도 레이아웃이 깨지지 않는" 시각화로 수렴시켰다.
 
