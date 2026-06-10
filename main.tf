@@ -182,9 +182,9 @@ resource "helm_release" "kube_prometheus_stack" {
                 panels = [
                   {
                     id      = 1
-                    title   = "🖥️ 클러스터 CPU 사용률"
+                    title   = "🖥️ 노드별 CPU 사용률"
                     type    = "gauge"
-                    gridPos = { x = 0, y = 0, w = 4, h = 5 }
+                    gridPos = { x = 0, y = 0, w = 12, h = 6 }
                     datasource = { type = "prometheus", uid = "prometheus" }
                     fieldConfig = {
                       defaults = {
@@ -202,15 +202,15 @@ resource "helm_release" "kube_prometheus_stack" {
                       }
                     }
                     targets = [{
-                      expr         = "100 - (avg by(instance) (irate(node_cpu_seconds_total{mode='idle'}[5m])) * 100)"
-                      legendFormat = "CPU"
+                      expr         = "label_replace(100 - (avg by(instance) (irate(node_cpu_seconds_total{mode='idle'}[5m])) * 100), \"node\", \"$1\", \"instance\", \"([^:]+):.*\")"
+                      legendFormat = "{{node}}"
                     }]
                   },
                   {
                     id      = 2
-                    title   = "💾 클러스터 메모리 사용률"
+                    title   = "💾 노드별 메모리 사용률"
                     type    = "gauge"
-                    gridPos = { x = 4, y = 0, w = 4, h = 5 }
+                    gridPos = { x = 12, y = 0, w = 12, h = 6 }
                     datasource = { type = "prometheus", uid = "prometheus" }
                     fieldConfig = {
                       defaults = {
@@ -228,15 +228,15 @@ resource "helm_release" "kube_prometheus_stack" {
                       }
                     }
                     targets = [{
-                      expr         = "100 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes * 100)"
-                      legendFormat = "Memory"
+                      expr         = "label_replace(100 - (avg by(instance) (node_memory_MemAvailable_bytes) / avg by(instance) (node_memory_MemTotal_bytes) * 100), \"node\", \"$1\", \"instance\", \"([^:]+):.*\")"
+                      legendFormat = "{{node}}"
                     }]
                   },
                   {
                     id      = 3
                     title   = "✅ Running Pods"
                     type    = "stat"
-                    gridPos = { x = 8, y = 0, w = 4, h = 5 }
+                    gridPos = { x = 0, y = 6, w = 6, h = 5 }
                     datasource = { type = "prometheus", uid = "prometheus" }
                     fieldConfig = {
                       defaults = {
@@ -256,7 +256,7 @@ resource "helm_release" "kube_prometheus_stack" {
                     id      = 4
                     title   = "🚨 Failed Pods"
                     type    = "stat"
-                    gridPos = { x = 12, y = 0, w = 4, h = 5 }
+                    gridPos = { x = 6, y = 6, w = 6, h = 5 }
                     datasource = { type = "prometheus", uid = "prometheus" }
                     fieldConfig = {
                       defaults = {
@@ -279,7 +279,7 @@ resource "helm_release" "kube_prometheus_stack" {
                     id      = 5
                     title   = "🖧 Node 수"
                     type    = "stat"
-                    gridPos = { x = 16, y = 0, w = 4, h = 5 }
+                    gridPos = { x = 12, y = 6, w = 6, h = 5 }
                     datasource = { type = "prometheus", uid = "prometheus" }
                     fieldConfig = {
                       defaults = {
@@ -299,7 +299,7 @@ resource "helm_release" "kube_prometheus_stack" {
                     id      = 6
                     title   = "⏳ Pending Pods"
                     type    = "stat"
-                    gridPos = { x = 20, y = 0, w = 4, h = 5 }
+                    gridPos = { x = 18, y = 6, w = 6, h = 5 }
                     datasource = { type = "prometheus", uid = "prometheus" }
                     fieldConfig = {
                       defaults = {
@@ -319,10 +319,10 @@ resource "helm_release" "kube_prometheus_stack" {
                     }]
                   },
                   {
-                    id      = 8
+                    id      = 7
                     title   = "⚡ StockOps Pod CPU 사용률"
                     type    = "timeseries"
-                    gridPos = { x = 0, y = 5, w = 12, h = 6 }
+                    gridPos = { x = 0, y = 11, w = 12, h = 6 }
                     datasource = { type = "prometheus", uid = "prometheus" }
                     fieldConfig = {
                       defaults = {
@@ -339,10 +339,10 @@ resource "helm_release" "kube_prometheus_stack" {
                     }]
                   },
                   {
-                    id      = 9
+                    id      = 8
                     title   = "💡 StockOps Pod 메모리 사용량"
                     type    = "timeseries"
-                    gridPos = { x = 12, y = 5, w = 12, h = 6 }
+                    gridPos = { x = 12, y = 11, w = 12, h = 6 }
                     datasource = { type = "prometheus", uid = "prometheus" }
                     fieldConfig = {
                       defaults = {
@@ -363,10 +363,10 @@ resource "helm_release" "kube_prometheus_stack" {
                     }]
                   },
                   {
-                    id      = 10
+                    id      = 9
                     title   = "📥 네트워크 수신 트래픽"
                     type    = "timeseries"
-                    gridPos = { x = 0, y = 11, w = 12, h = 6 }
+                    gridPos = { x = 0, y = 17, w = 12, h = 6 }
                     datasource = { type = "prometheus", uid = "prometheus" }
                     fieldConfig = {
                       defaults = {
@@ -383,10 +383,10 @@ resource "helm_release" "kube_prometheus_stack" {
                     }]
                   },
                   {
-                    id      = 11
+                    id      = 10
                     title   = "📤 네트워크 송신 트래픽"
                     type    = "timeseries"
-                    gridPos = { x = 12, y = 11, w = 12, h = 6 }
+                    gridPos = { x = 12, y = 17, w = 12, h = 6 }
                     datasource = { type = "prometheus", uid = "prometheus" }
                     fieldConfig = {
                       defaults = {
@@ -403,10 +403,10 @@ resource "helm_release" "kube_prometheus_stack" {
                     }]
                   },
                   {
-                    id      = 12
+                    id      = 11
                     title   = "🔄 Pod 재시작 횟수"
                     type    = "table"
-                    gridPos = { x = 0, y = 17, w = 12, h = 6 }
+                    gridPos = { x = 0, y = 23, w = 12, h = 6 }
                     datasource = { type = "prometheus", uid = "prometheus" }
                     targets = [{
                       expr         = "sum(kube_pod_container_status_restarts_total{namespace='stockops'}) by (pod)"
@@ -415,10 +415,10 @@ resource "helm_release" "kube_prometheus_stack" {
                     }]
                   },
                   {
-                    id      = 13
+                    id      = 12
                     title   = "🟢 Node 상태"
                     type    = "table"
-                    gridPos = { x = 12, y = 17, w = 12, h = 6 }
+                    gridPos = { x = 12, y = 23, w = 12, h = 6 }
                     datasource = { type = "prometheus", uid = "prometheus" }
                     fieldConfig = {
                       defaults = {
@@ -438,10 +438,10 @@ resource "helm_release" "kube_prometheus_stack" {
                     }]
                   },
                   {
-                    id      = 7
+                    id      = 13
                     title   = "📋 StockOps 서비스별 Pod 상태"
                     type    = "table"
-                    gridPos = { x = 0, y = 23, w = 24, h = 5 }
+                    gridPos = { x = 0, y = 29, w = 24, h = 5 }
                     datasource = { type = "prometheus", uid = "prometheus" }
                     targets = [
                       {
