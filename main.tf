@@ -801,17 +801,38 @@ resource "helm_release" "kube_prometheus_stack" {
                   to   = "now"
                 }
 
+                templating = {
+                  list = [
+                    {
+                      name    = "search"
+                      type    = "textbox"
+                      label   = "🔍 검색어"
+                      query   = ""
+                      current = { text = "", value = "" }
+                    },
+                    {
+                      name       = "level"
+                      type       = "custom"
+                      label      = "로그 레벨"
+                      query      = "전체 : .*,INFO : INFO,WARN : WARN,ERROR : ERROR"
+                      includeAll = false
+                      multi      = false
+                      current    = { text = "전체", value = ".*" }
+                    }
+                  ]
+                }
+
                 panels = [
                   {
-                    id      = 2
+                    id      = 1
                     title   = "📋 API 로그 (stockops-api)"
                     type    = "logs"
-                    gridPos = { x = 0, y = 0, w = 24, h = 10 }
+                    gridPos = { x = 0, y = 0, w = 24, h = 11 }
                     datasource = { type = "cloudwatch", uid = "cloudwatch" }
                     options = {
-                      showTime      = true
+                      showTime       = true
                       wrapLogMessage = true
-                      sortOrder     = "Descending"
+                      sortOrder      = "Descending"
                     }
                     targets = [
                       {
@@ -819,20 +840,20 @@ resource "helm_release" "kube_prometheus_stack" {
                         region        = "ap-northeast-2"
                         logGroupNames = ["/aws/eks/seoul-cluster/stockops/api"]
                         queryMode     = "Logs"
-                        expression    = "fields @timestamp, @message | sort @timestamp desc | limit 100"
+                        expression    = "fields @timestamp, @message | filter @message like /$level/ and @message like /$search/ | sort @timestamp desc | limit 100"
                       }
                     ]
                   },
                   {
-                    id      = 3
+                    id      = 2
                     title   = "🤖 AI 로그 (stockops-ai)"
                     type    = "logs"
-                    gridPos = { x = 0, y = 10, w = 24, h = 10 }
+                    gridPos = { x = 0, y = 11, w = 24, h = 11 }
                     datasource = { type = "cloudwatch", uid = "cloudwatch" }
                     options = {
-                      showTime      = true
+                      showTime       = true
                       wrapLogMessage = true
-                      sortOrder     = "Descending"
+                      sortOrder      = "Descending"
                     }
                     targets = [
                       {
@@ -840,20 +861,20 @@ resource "helm_release" "kube_prometheus_stack" {
                         region        = "ap-northeast-2"
                         logGroupNames = ["/aws/eks/seoul-cluster/stockops/ai"]
                         queryMode     = "Logs"
-                        expression    = "fields @timestamp, @message | sort @timestamp desc | limit 100"
+                        expression    = "fields @timestamp, @message | filter @message like /$level/ and @message like /$search/ | sort @timestamp desc | limit 100"
                       }
                     ]
                   },
                   {
-                    id      = 4
+                    id      = 3
                     title   = "⚠️ API 경고/에러 (WARN / ERROR)"
                     type    = "logs"
-                    gridPos = { x = 0, y = 20, w = 24, h = 10 }
+                    gridPos = { x = 0, y = 22, w = 24, h = 10 }
                     datasource = { type = "cloudwatch", uid = "cloudwatch" }
                     options = {
-                      showTime      = true
+                      showTime       = true
                       wrapLogMessage = true
-                      sortOrder     = "Descending"
+                      sortOrder      = "Descending"
                     }
                     targets = [
                       {
@@ -861,7 +882,7 @@ resource "helm_release" "kube_prometheus_stack" {
                         region        = "ap-northeast-2"
                         logGroupNames = ["/aws/eks/seoul-cluster/stockops/api"]
                         queryMode     = "Logs"
-                        expression    = "fields @timestamp, @message | filter @message like /WARN|ERROR/ | sort @timestamp desc | limit 100"
+                        expression    = "fields @timestamp, @message | filter @message like /WARN|ERROR/ and @message like /$search/ | sort @timestamp desc | limit 100"
                       }
                     ]
                   }
