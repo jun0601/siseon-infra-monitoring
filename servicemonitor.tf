@@ -30,7 +30,7 @@ resource "kubernetes_manifest" "stockops_api_servicemonitor" {
       endpoints = [
         {
           # TODO(내일확인): Service 포트 "이름"(숫자 아님). kubectl get svc stockops-api -n stockops -o yaml
-          port     = "http"
+          targetPort = 8080
           path     = "/actuator/prometheus"
           interval = "30s"
         }

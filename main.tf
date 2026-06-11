@@ -141,6 +141,17 @@ resource "helm_release" "kube_prometheus_stack" {
                 options = {
                   path = "/var/lib/grafana/dashboards/applog-custom"
                 }
+              },
+              {
+                name            = "appmetric-custom"
+                orgId           = 1
+                folder          = "🚀 애플리케이션 모니터링"
+                type            = "file"
+                disableDeletion = true
+                editable        = true
+                options = {
+                  path = "/var/lib/grafana/dashboards/appmetric-custom"
+                }
               }
             ]
           }
@@ -883,6 +894,225 @@ resource "helm_release" "kube_prometheus_stack" {
                         logGroupNames = ["/aws/eks/seoul-cluster/stockops/api"]
                         queryMode     = "Logs"
                         expression    = "fields @timestamp, @message | filter @message like /WARN|ERROR/ and @message like /$search/ | sort @timestamp desc | limit 100"
+                      }
+                    ]
+                  }
+                ]
+              })
+            }
+          },
+          appmetric-custom = {
+            stockops-appmetric = {
+              json = jsonencode({
+                title         = "📈 StockOps 애플리케이션 메트릭"
+                uid           = "stockops-appmetric-custom"
+                timezone      = "Asia/Seoul"
+                refresh       = "30s"
+                schemaVersion = 38
+                tags          = ["stockops", "metrics", "application"]
+                time = {
+                  from = "now-30m"
+                  to   = "now"
+                }
+
+                panels = [
+                  {
+                    id      = 1
+                    title   = "🚀 API 처리량 (req/s)"
+                    type    = "timeseries"
+                    gridPos = { x = 0, y = 0, w = 12, h = 7 }
+                    datasource = { type = "prometheus", uid = "prometheus" }
+                    fieldConfig = {
+                      defaults = {
+                        unit = "reqps"
+                        custom = {
+                          lineWidth   = 2
+                          fillOpacity = 15
+                        }
+                      }
+                    }
+                    options = {
+                      legend = {
+                        displayMode = "table"
+                        placement   = "right"
+                        calcs       = ["lastNotNull", "max"]
+                      }
+                    }
+                    targets = [{
+                      expr         = "sum(rate(http_server_requests_seconds_count{application=\"stockops\"}[1m])) by (method)"
+                      legendFormat = "{{method}}"
+                    }]
+                  },
+                  {
+                    id      = 2
+                    title   = "❌ 에러율 (%)"
+                    type    = "timeseries"
+                    gridPos = { x = 12, y = 0, w = 12, h = 7 }
+                    datasource = { type = "prometheus", uid = "prometheus" }
+                    fieldConfig = {
+                      defaults = {
+                        unit = "percent"
+                        min  = 0
+                        custom = {
+                          lineWidth   = 2
+                          fillOpacity = 15
+                        }
+                        thresholds = {
+                          mode = "absolute"
+                          steps = [
+                            { color = "green", value = null },
+                            { color = "yellow", value = 1 },
+                            { color = "red", value = 5 }
+                          ]
+                        }
+                      }
+                    }
+                    targets = [{
+                      expr         = "sum(rate(http_server_requests_seconds_count{application=\"stockops\",status=~\"5..\"}[1m])) / sum(rate(http_server_requests_seconds_count{application=\"stockops\"}[1m])) * 100 or vector(0)"
+                      legendFormat = "5xx 에러율"
+                    }]
+                  },
+                  {
+                    id      = 3
+                    title   = "⏱️ 평균 응답시간"
+                    type    = "timeseries"
+                    gridPos = { x = 0, y = 7, w = 12, h = 7 }
+                    datasource = { type = "prometheus", uid = "prometheus" }
+                    fieldConfig = {
+                      defaults = {
+                        unit = "s"
+                        custom = {
+                          lineWidth   = 2
+                          fillOpacity = 15
+                        }
+                        thresholds = {
+                          mode = "absolute"
+                          steps = [
+                            { color = "green", value = null },
+                            { color = "yellow", value = 0.5 },
+                            { color = "red", value = 1 }
+                          ]
+                        }
+                      }
+                    }
+                    options = {
+                      legend = {
+                        displayMode = "table"
+                        placement   = "right"
+                        calcs       = ["lastNotNull", "max"]
+                      }
+                    }
+                    targets = [{
+                      expr         = "sum(rate(http_server_requests_seconds_sum{application=\"stockops\"}[1m])) by (uri) / sum(rate(http_server_requests_seconds_count{application=\"stockops\"}[1m])) by (uri)"
+                      legendFormat = "{{uri}}"
+                    }]
+                  },
+                  {
+                    id      = 4
+                    title   = "🧠 JVM 힙 메모리"
+                    type    = "timeseries"
+                    gridPos = { x = 12, y = 7, w = 12, h = 7 }
+                    datasource = { type = "prometheus", uid = "prometheus" }
+                    fieldConfig = {
+                      defaults = {
+                        unit = "bytes"
+                        custom = {
+                          lineWidth   = 2
+                          fillOpacity = 15
+                        }
+                      }
+                    }
+                    options = {
+                      legend = {
+                        displayMode = "table"
+                        placement   = "right"
+                        calcs       = ["lastNotNull", "max"]
+                      }
+                    }
+                    targets = [
+                      {
+                        expr         = "sum(jvm_memory_used_bytes{application=\"stockops\",area=\"heap\"})"
+                        legendFormat = "사용 중"
+                      },
+                      {
+                        expr         = "sum(jvm_memory_committed_bytes{application=\"stockops\",area=\"heap\"})"
+                        legendFormat = "할당됨"
+                      }
+                    ]
+                  },
+                  {
+                    id      = 5
+                    title   = "🗄️ DB 커넥션 풀 (HikariCP)"
+                    type    = "timeseries"
+                    gridPos = { x = 0, y = 14, w = 12, h = 7 }
+                    datasource = { type = "prometheus", uid = "prometheus" }
+                    fieldConfig = {
+                      defaults = {
+                        unit = "short"
+                        custom = {
+                          lineWidth   = 2
+                          fillOpacity = 15
+                        }
+                      }
+                    }
+                    options = {
+                      legend = {
+                        displayMode = "table"
+                        placement   = "right"
+                        calcs       = ["lastNotNull", "max"]
+                      }
+                    }
+                    targets = [
+                      {
+                        expr         = "sum(hikaricp_connections_active{application=\"stockops\"})"
+                        legendFormat = "활성"
+                      },
+                      {
+                        expr         = "sum(hikaricp_connections_idle{application=\"stockops\"})"
+                        legendFormat = "유휴"
+                      },
+                      {
+                        expr         = "sum(hikaricp_connections_pending{application=\"stockops\"})"
+                        legendFormat = "대기"
+                      }
+                    ]
+                  },
+                  {
+                    id      = 6
+                    title   = "🔌 Bedrock 회로차단기 상태"
+                    type    = "stat"
+                    gridPos = { x = 12, y = 14, w = 12, h = 7 }
+                    datasource = { type = "prometheus", uid = "prometheus" }
+                    fieldConfig = {
+                      defaults = {
+                        unit = "short"
+                        mappings = [
+                          { type = "value", options = {
+                            "0" = { text = "정상 (닫힘)", color = "green" },
+                            "1" = { text = "차단 (열림)", color = "red" }
+                          } }
+                        ]
+                        thresholds = {
+                          mode = "absolute"
+                          steps = [
+                            { color = "green", value = null }
+                          ]
+                        }
+                      }
+                    }
+                    options = {
+                      textMode   = "value"
+                      colorMode  = "value"
+                      graphMode  = "none"
+                      text = {
+                        valueSize = 28
+                      }
+                    }
+                    targets = [
+                      {
+                        expr         = "resilience4j_circuitbreaker_state{application=\"stockops\",name=\"bedrock\",state=\"open\"}"
+                        legendFormat = "상태"
+                        instant      = true
                       }
                     ]
                   }
