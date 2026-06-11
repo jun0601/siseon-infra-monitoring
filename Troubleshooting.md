@@ -302,6 +302,84 @@ receivers = [
 EKS 환경에서 kube-prometheus-stack 사용 시 컨트롤 플레인 관련 기본 알람은 반드시 억제해야 합니다.
 
 
+## 11. ServiceMonitor가 Service를 못 찾음 (Service 라벨 누락)
+
+### 증상
+ServiceMonitor를 배포했는데 Prometheus Targets에 stockops-api가 나타나지 않음.
+ServiceMonitor 리소스 자체는 정상 등록(`kubectl get servicemonitor`)되어 있음.
+
+### 원인
+ServiceMonitor는 `selector.matchLabels`로 **대상 Service를 라벨로 찾는다.** 그런데 팀 인프라의
+Service 정의에 라벨이 없어(`kubectl get svc --show-labels` → `<none>`) 매칭이 실패했다.
+Deployment에는 `app` 라벨이 있었지만, ServiceMonitor가 보는 것은 **Service 메타데이터의 라벨**이다.
+
+### 해결
+Service 정의(`seoul/kubernetes.tf`)의 metadata에 라벨 추가 (팀 인프라 담당에게 요청):
+
+```hcl
+metadata {
+  name   = "stockops-api-svc"
+  labels = { app = "stockops-api" }   # ← ServiceMonitor 셀렉터가 찾는 라벨
+}
+```
+
+### 교훈
+ServiceMonitor의 매칭 기준은 Pod/Deployment 라벨이 아니라 **Service 자체의 라벨**이다.
+앱 배포(Service)와 모니터링(ServiceMonitor)이 다른 레포로 분리된 경우, Service 라벨 규약을
+사전에 합의해야 한다.
+
+## 12. ServiceMonitor CRD 미존재로 apply 실패 (클린 배포)
+
+### 증상
+```
+Error: API did not recognize GroupVersionKind from manifest (CRD may not be installed)
+no matches for kind "ServiceMonitor" in group "monitoring.coreos.com"
+```
+
+### 원인
+`kubernetes_manifest`는 **plan 시점에 해당 CRD가 클러스터에 이미 존재해야** 한다.
+클러스터를 새로 만든 직후엔 kube-prometheus-stack(ServiceMonitor CRD 생성)이 아직 안 깔려서,
+ServiceMonitor를 같은 apply에서 plan하려다 "kind를 모른다"고 실패한다. `depends_on`을 걸어도
+plan 단계라 해결되지 않는다.
+
+### 해결
+CRD를 먼저 생성하는 2단계 apply:
+
+```bash
+# 1단계: Helm(=CRD)만 먼저
+terraform apply -target=helm_release.kube_prometheus_stack
+
+# 2단계: 전체 (CRD 생겼으니 ServiceMonitor 인식)
+terraform apply
+```
+
+클러스터/CRD가 살아있는 상태에서 monitoring만 내렸다 올릴 때는 1단계가 필요 없다(딸깍 1번).
+영구적으로 1단계로 만들려면 ServiceMonitor를 Helm values의 `additionalServiceMonitors`로
+옮기면 되지만, 파일 분리를 포기하게 된다.
+
+### 교훈
+`kubernetes_manifest`로 CRD 기반 리소스(ServiceMonitor 등)를 만들 땐 CRD 선행 생성이 필수다.
+클린 배포와 부분 재배포의 절차가 다르다는 점을 운영 문서에 명시해야 한다.
+
+## 13. ServiceMonitor 포트 이름 매칭 실패
+
+### 증상
+Service 라벨을 붙였는데도 Prometheus가 스크랩하지 못함.
+
+### 원인
+ServiceMonitor의 endpoint에서 포트를 **이름(`port: http`)으로 지정**했는데, 대상 Service의
+포트 정의에 `name`이 없어서 "http"라는 이름의 포트를 찾지 못했다.
+
+### 해결
+ServiceMonitor에서 포트를 숫자(`targetPort: 8080`)로 지정하거나, Service 포트에 `name = "http"`를
+추가한다. 후자가 표준적이라 Service 포트에 이름을 부여하고 ServiceMonitor는 `port: http`를 쓰는
+방식으로 통일했다.
+
+### 교훈
+ServiceMonitor의 `port`(이름 기반)와 `targetPort`(숫자 기반)는 다르다. 이름으로 매칭하려면
+Service 포트에 반드시 `name`이 있어야 한다.
+
+
 ## 📋 트러블슈팅 요약
 
 | # | 문제 | 원인 | 해결 |
@@ -316,3 +394,6 @@ EKS 환경에서 kube-prometheus-stack 사용 시 컨트롤 플레인 관련 기
 | 8 | Failed/Pending 오류 집계 | 네임스페이스 필터 + 현재 상태 필터 누락 | == 1 조건 + namespace 필터 추가 |
 | 9 | Alertmanager Pod 미생성 | additionalPrometheusRulesMap 위치 오류 + email 필드 불일치 | 레벨 분리 + subject/body 제거 |
 | 10 | EKS 노이즈 알람 | 컨트롤 플레인 메트릭 수집 불가 | blackhole receiver + 필요 알람만 라우팅 |
+| 11 | ServiceMonitor가 Service 못 찾음 | Service 메타데이터에 라벨 누락 | Service metadata에 app 라벨 추가 |
+| 12 | ServiceMonitor CRD 미존재 apply 실패 | kubernetes_manifest는 plan 시 CRD 필요 | Helm(CRD) 먼저 -target apply 후 전체 apply |
+| 13 | ServiceMonitor 포트 매칭 실패 | port 이름(http)에 대응하는 Service 포트 name 없음 | targetPort 숫자 지정 또는 Service 포트에 name 부여 |

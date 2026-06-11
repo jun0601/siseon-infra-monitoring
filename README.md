@@ -61,6 +61,7 @@ AWS NLB (internet-facing)
 | 공식 템플릿 | Grafana Community | Kubernetes Cluster (ID: 7249) |
 | 공식 템플릿 | Grafana Community | Kubernetes Pod (ID: 6417) |
 | 커스텀 | 직접 제작 | 🏭 StockOps 인프라 현황 |
+| 커스텀 | 직접 제작 | 📈 StockOps 애플리케이션 메트릭 (api) |
 
 ### 🏭 StockOps 인프라 현황 커스텀 대시보드 구성
 
@@ -79,6 +80,36 @@ AWS NLB (internet-facing)
 | 📤 네트워크 송신 | Timeseries | 아웃바운드 트래픽 |
 | 🔄 Pod 재시작 횟수 | Table | CrashLoopBackOff 감지 |
 | 🟢 Node 상태 | Table | 노드 Ready 상태 |
+
+### 📈 StockOps 애플리케이션 메트릭 커스텀 대시보드 구성
+
+Spring Boot api-server가 `/actuator/prometheus`로 노출하는 애플리케이션 메트릭을 ServiceMonitor로 수집해 시각화합니다.
+
+| 패널 | 타입 | 설명 |
+|------|------|------|
+| 🚀 API 처리량 (req/s) | Timeseries | HTTP 메서드별 초당 요청 수 |
+| ❌ 에러율 (%) | Timeseries | 전체 요청 중 5xx 비율 |
+| ⏱️ 평균 응답시간 | Timeseries | URI별 평균 처리 시간 |
+| 🧠 JVM 힙 메모리 | Timeseries | 사용/할당 힙 메모리 |
+| 🗄️ DB 커넥션 풀 (HikariCP) | Timeseries | 활성/유휴/대기 커넥션 |
+| 🔌 Bedrock 회로차단기 상태 | Stat | resilience4j 회로차단기 (정상/차단) |
+
+> **메트릭 = api 전용**: ai-module(FastAPI)은 메트릭 대신 분산 추적(OpenTelemetry)으로 관측하기로 역할을 분리했다.
+> Spring 메트릭은 summary 타입이라 진짜 분위수(p95)는 불가, 평균(`_sum/_count`)으로 응답시간을 계산한다.
+> 에러율·회로차단기는 정상 상태에서 0으로 표시되며, `or vector(0)`로 No data 대신 0%를 표기한다.
+
+### ServiceMonitor (앱 메트릭 수집)
+
+ServiceMonitor 커스텀 리소스로 Prometheus가 stockops 네임스페이스의 api Service를 스크랩하게 한다.
+
+| 항목 | 값 |
+|------|-----|
+| 대상 | `stockops-api-svc` (stockops 네임스페이스) |
+| 경로 | `/actuator/prometheus` |
+| 포트 | 8080 (targetPort) |
+| 라벨 | `release: kube-prometheus-stack` (Prometheus가 인식하는 셀렉터) |
+
+> ServiceMonitor가 Service를 찾으려면 Service 메타데이터에 `app` 라벨이 있어야 한다. (트러블슈팅 #11 참고)
 
 ---
 
@@ -100,6 +131,7 @@ AWS NLB (internet-facing)
 ```
 siseon-infra-monitoring/
 ├── main.tf              # kube-prometheus-stack Helm 배포 + 대시보드 provisioning
+├── servicemonitor.tf    # 앱 메트릭 수집 ServiceMonitor (api)
 ├── providers.tf         # AWS / Kubernetes / Helm Provider 설정
 ├── variables.tf         # 변수 정의
 ├── outputs.tf           # 출력값
