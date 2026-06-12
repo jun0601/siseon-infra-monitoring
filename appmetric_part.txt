@@ -1,0 +1,198 @@
+          appmetric-custom = {
+            stockops-appmetric = {
+              json = jsonencode({
+                title         = "?ìà StockOps ?†ÌîåÎ¶¨Ï??¥ÏÖò Î©îÌä∏Î¶?
+                uid           = "stockops-appmetric-custom"
+                timezone      = "Asia/Seoul"
+                refresh       = "30s"
+                schemaVersion = 38
+                tags          = ["stockops", "metrics", "application"]
+                time = {
+                  from = "now-30m"
+                  to   = "now"
+                }
+
+                panels = [
+                  {
+                    id      = 1
+                    title   = "?? API Ï≤òÎ¶¨??(req/s)"
+                    type    = "timeseries"
+                    gridPos = { x = 0, y = 0, w = 12, h = 7 }
+                    datasource = { type = "prometheus", uid = "prometheus" }
+                    fieldConfig = {
+                      defaults = {
+                        unit = "reqps"
+                        custom = {
+                          lineWidth   = 2
+                          fillOpacity = 15
+                        }
+                      }
+                    }
+                    options = {
+                      legend = {
+                        displayMode = "table"
+                        placement   = "right"
+                        calcs       = ["lastNotNull", "max"]
+                      }
+                    }
+                    targets = [{
+                      expr         = "sum(rate(http_server_requests_seconds_count{application=\"stockops\"}[1m])) by (method)"
+                      legendFormat = "{{method}}"
+                    }]
+                  },
+                  {
+                    id      = 2
+                    title   = "???êÎü¨??(%)"
+                    type    = "timeseries"
+                    gridPos = { x = 12, y = 0, w = 12, h = 7 }
+                    datasource = { type = "prometheus", uid = "prometheus" }
+                    fieldConfig = {
+                      defaults = {
+                        unit = "percent"
+                        min  = 0
+                        custom = {
+                          lineWidth   = 2
+                          fillOpacity = 15
+                        }
+                        thresholds = {
+                          mode = "absolute"
+                          steps = [
+                            { color = "green", value = null },
+                            { color = "yellow", value = 1 },
+                            { color = "red", value = 5 }
+                          ]
+                        }
+                      }
+                    }
+                    targets = [{
+                      expr         = "sum(rate(http_server_requests_seconds_count{application=\"stockops\",status=~\"5..\"}[1m])) / sum(rate(http_server_requests_seconds_count{application=\"stockops\"}[1m])) * 100 or vector(0)"
+                      legendFormat = "5xx ?êÎü¨??
+                    }]
+                  },
+                  {
+                    id      = 3
+                    title   = "?±Ô∏è ?âÍ∑† ?ëÎãµ?úÍ∞Ñ"
+                    type    = "timeseries"
+                    gridPos = { x = 0, y = 7, w = 12, h = 7 }
+                    datasource = { type = "prometheus", uid = "prometheus" }
+                    fieldConfig = {
+                      defaults = {
+                        unit = "s"
+                        custom = {
+                          lineWidth   = 2
+                          fillOpacity = 15
+                        }
+                        thresholds = {
+                          mode = "absolute"
+                          steps = [
+                            { color = "green", value = null },
+                            { color = "yellow", value = 0.5 },
+                            { color = "red", value = 1 }
+                          ]
+                        }
+                      }
+                    }
+                    options = {
+                      legend = {
+                        displayMode = "table"
+                        placement   = "right"
+                        calcs       = ["lastNotNull", "max"]
+                      }
+                    }
+                    targets = [{
+                      expr         = "sum(rate(http_server_requests_seconds_sum{application=\"stockops\"}[1m])) by (uri) / sum(rate(http_server_requests_seconds_count{application=\"stockops\"}[1m])) by (uri)"
+                      legendFormat = "{{uri}}"
+                    }]
+                  },
+                  {
+                    id      = 4
+                    title   = "?ß† JVM ??Î©îÎ™®Î¶?
+                    type    = "timeseries"
+                    gridPos = { x = 12, y = 7, w = 12, h = 7 }
+                    datasource = { type = "prometheus", uid = "prometheus" }
+                    fieldConfig = {
+                      defaults = {
+                        unit = "bytes"
+                        custom = {
+                          lineWidth   = 2
+                          fillOpacity = 15
+                        }
+                      }
+                    }
+                    options = {
+                      legend = {
+                        displayMode = "table"
+                        placement   = "right"
+                        calcs       = ["lastNotNull", "max"]
+                      }
+                    }
+                    targets = [
+                      {
+                        expr         = "sum(jvm_memory_used_bytes{application=\"stockops\",area=\"heap\"})"
+                        legendFormat = "?¨Ïö© Ï§?
+                      },
+                      {
+                        expr         = "sum(jvm_memory_committed_bytes{application=\"stockops\",area=\"heap\"})"
+                        legendFormat = "?†Îãπ??
+                      }
+                    ]
+                  },
+                  {
+                    id      = 5
+                    title   = "?óÑÔ∏?DB Ïª§ÎÑ•???Ä (HikariCP)"
+                    type    = "timeseries"
+                    gridPos = { x = 0, y = 14, w = 12, h = 7 }
+                    datasource = { type = "prometheus", uid = "prometheus" }
+                    fieldConfig = {
+                      defaults = {
+                        unit = "short"
+                        custom = {
+                          lineWidth   = 2
+                          fillOpacity = 15
+                        }
+                      }
+                    }
+                    options = {
+                      legend = {
+                        displayMode = "table"
+                        placement   = "right"
+                        calcs       = ["lastNotNull", "max"]
+                      }
+                    }
+                    targets = [
+                      {
+                        expr         = "sum(hikaricp_connections_active{application=\"stockops\"})"
+                        legendFormat = "?úÏÑ±"
+                      },
+                      {
+                        expr         = "sum(hikaricp_connections_idle{application=\"stockops\"})"
+                        legendFormat = "?†Ìú¥"
+                      },
+                      {
+                        expr         = "sum(hikaricp_connections_pending{application=\"stockops\"})"
+                        legendFormat = "?ÄÍ∏?
+                      }
+                    ]
+                  },
+                  {
+                    id      = 6
+                    title   = "?îå Bedrock ?åÎ°úÏ∞®Îã®Í∏??ÅÌÉú"
+                    type    = "stat"
+                    gridPos = { x = 12, y = 14, w = 12, h = 7 }
+                    datasource = { type = "prometheus", uid = "prometheus" }
+                    fieldConfig = {
+                      defaults = {
+                        unit = "short"
+                        mappings = [
+                          { type = "value", options = {
+                            "0" = { text = "?ïÏÉÅ (?´Ìûò)", color = "green" },
+                            "1" = { text = "Ï∞®Îã® (?¥Î¶º)", color = "red" }
+                          } }
+                        ]
+                        thresholds = {
+                          mode = "absolute"
+                          steps = [
+                            { color = "green", value = null }
+                          ]
+                        }
+                      }

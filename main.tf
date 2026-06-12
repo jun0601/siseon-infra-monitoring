@@ -1115,6 +1115,112 @@ resource "helm_release" "kube_prometheus_stack" {
                         instant      = true
                       }
                     ]
+                  },
+                  {
+                    id      = 7
+                    title   = "🤖 AI 예측 처리량 (req/s)"
+                    type    = "timeseries"
+                    gridPos = { x = 0, y = 21, w = 12, h = 7 }
+                    datasource = { type = "prometheus", uid = "prometheus" }
+                    fieldConfig = {
+                      defaults = {
+                        unit = "reqps"
+                        custom = {
+                          lineWidth   = 2
+                          fillOpacity = 15
+                        }
+                      }
+                    }
+                    options = {
+                      legend = {
+                        displayMode = "table"
+                        placement   = "right"
+                        calcs       = ["lastNotNull", "max"]
+                      }
+                    }
+                    targets = [{
+                      expr         = "sum(rate(ai_forecast_requests_total[5m])) by (outcome) or vector(0)"
+                      legendFormat = "{{outcome}}"
+                    }]
+                  },
+                  {
+                    id      = 8
+                    title   = "🤖 AI 예측 지연 p95"
+                    type    = "timeseries"
+                    gridPos = { x = 12, y = 21, w = 12, h = 7 }
+                    datasource = { type = "prometheus", uid = "prometheus" }
+                    fieldConfig = {
+                      defaults = {
+                        unit = "s"
+                        custom = {
+                          lineWidth   = 2
+                          fillOpacity = 15
+                        }
+                        thresholds = {
+                          mode = "absolute"
+                          steps = [
+                            { color = "green", value = null },
+                            { color = "yellow", value = 2 },
+                            { color = "red", value = 5 }
+                          ]
+                        }
+                      }
+                    }
+                    targets = [{
+                      expr         = "histogram_quantile(0.95, sum(rate(ai_forecast_duration_seconds_bucket[5m])) by (le))"
+                      legendFormat = "p95"
+                    }]
+                  },
+                  {
+                    id      = 9
+                    title   = "🤖 모델 캐시 적중률 (%)"
+                    type    = "timeseries"
+                    gridPos = { x = 0, y = 28, w = 12, h = 7 }
+                    datasource = { type = "prometheus", uid = "prometheus" }
+                    fieldConfig = {
+                      defaults = {
+                        unit = "percent"
+                        min  = 0
+                        max  = 100
+                        custom = {
+                          lineWidth   = 2
+                          fillOpacity = 15
+                        }
+                      }
+                    }
+                    targets = [{
+                      expr         = "sum(increase(ai_model_cache_events_total{result=\"hit\"}[10m])) / sum(increase(ai_model_cache_events_total[10m])) * 100 or vector(0)"
+                      legendFormat = "캐시 적중률"
+                    }]
+                  },
+                  {
+                    id      = 10
+                    title   = "🤖 예측 정확도 MAPE (%)"
+                    type    = "stat"
+                    gridPos = { x = 12, y = 28, w = 12, h = 7 }
+                    datasource = { type = "prometheus", uid = "prometheus" }
+                    fieldConfig = {
+                      defaults = {
+                        unit = "percent"
+                        decimals = 1
+                        thresholds = {
+                          mode = "absolute"
+                          steps = [
+                            { color = "green", value = null },
+                            { color = "yellow", value = 20 },
+                            { color = "red", value = 50 }
+                          ]
+                        }
+                      }
+                    }
+                    options = {
+                      colorMode = "value"
+                      text      = { valueSize = 28 }
+                    }
+                    targets = [{
+                      expr    = "sum(ai_evaluation_mape_percent_sum) / sum(ai_evaluation_mape_percent_count)"
+                      instant = true
+                    }]
                   }
                 ]
               })
