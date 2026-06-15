@@ -79,6 +79,15 @@ resource "helm_release" "kube_prometheus_stack" {
                 }
               },
               {
+                name = "CloudWatch-Ohio"
+                type = "cloudwatch"
+                uid  = "cloudwatch-ohio"
+                jsonData = {
+                  defaultRegion = "us-east-2"
+                  authType      = "default"
+                }
+              },
+              {
                 name = "Athena"
                 type = "grafana-athena-datasource"
                 uid  = "athena"
@@ -520,7 +529,6 @@ resource "helm_release" "kube_prometheus_stack" {
                         rawSQL = "SELECT DISTINCT site_id FROM stockops_sensor.sensor_data WHERE year='2026' AND month='06'"
                         format = 0
                         connectionArgs = {
-                          region    = "ap-northeast-2"
                           catalog   = "AwsDataCatalog"
                           database  = "stockops_sensor"
                         }
@@ -564,7 +572,6 @@ resource "helm_release" "kube_prometheus_stack" {
                       format = 1
                       refId  = "A"
                       connectionArgs = {
-                        region   = "ap-northeast-2"
                         catalog  = "AwsDataCatalog"
                         database = "stockops_sensor"
                       }
@@ -602,7 +609,6 @@ resource "helm_release" "kube_prometheus_stack" {
                       format = 1
                       refId  = "A"
                       connectionArgs = {
-                        region   = "ap-northeast-2"
                         catalog  = "AwsDataCatalog"
                         database = "stockops_sensor"
                       }
@@ -632,7 +638,6 @@ resource "helm_release" "kube_prometheus_stack" {
                       format = 1
                       refId  = "A"
                       connectionArgs = {
-                        region   = "ap-northeast-2"
                         catalog  = "AwsDataCatalog"
                         database = "stockops_sensor"
                       }
@@ -671,7 +676,6 @@ resource "helm_release" "kube_prometheus_stack" {
                       format = 1
                       refId  = "A"
                       connectionArgs = {
-                        region   = "ap-northeast-2"
                         catalog  = "AwsDataCatalog"
                         database = "stockops_sensor"
                       }
@@ -710,7 +714,6 @@ resource "helm_release" "kube_prometheus_stack" {
                       format = 1
                       refId  = "A"
                       connectionArgs = {
-                        region   = "ap-northeast-2"
                         catalog  = "AwsDataCatalog"
                         database = "stockops_sensor"
                       }
@@ -749,7 +752,6 @@ resource "helm_release" "kube_prometheus_stack" {
                       format = 0
                       refId  = "A"
                       connectionArgs = {
-                        region   = "ap-northeast-2"
                         catalog  = "AwsDataCatalog"
                         database = "stockops_sensor"
                       }
@@ -788,7 +790,6 @@ resource "helm_release" "kube_prometheus_stack" {
                       format = 0
                       refId  = "A"
                       connectionArgs = {
-                        region   = "ap-northeast-2"
                         catalog  = "AwsDataCatalog"
                         database = "stockops_sensor"
                       }
@@ -829,6 +830,32 @@ resource "helm_release" "kube_prometheus_stack" {
                       includeAll = false
                       multi      = false
                       current    = { text = "전체", value = ".*" }
+                    },
+                    {
+                      name    = "region_ds"
+                      type    = "datasource"
+                      label   = "🌐 리전"
+                      query   = "cloudwatch"
+                      current = { text = "CloudWatch", value = "cloudwatch" }
+                    },
+                    {
+                      name       = "cluster"
+                      type       = "custom"
+                      label      = "클러스터"
+                      query      = "서울 : seoul-cluster,미국(오하이오) : ohio-cluster"
+                      includeAll = false
+                      multi      = false
+                      current    = { text = "서울", value = "seoul-cluster" }
+                    },
+                    {
+                      name       = "region_target"
+                      type       = "custom"
+                      label      = "AWS 리전"
+                      query      = "서울 : ap-northeast-2,미국(오하이오) : us-east-2"
+                      includeAll = false
+                      multi      = false
+                      current    = { text = "서울", value = "ap-northeast-2" }
+                      hide       = 2
                     }
                   ]
                 }
@@ -839,7 +866,7 @@ resource "helm_release" "kube_prometheus_stack" {
                     title   = "📋 API 로그 (stockops-api)"
                     type    = "logs"
                     gridPos = { x = 0, y = 0, w = 24, h = 11 }
-                    datasource = { type = "cloudwatch", uid = "cloudwatch" }
+                    datasource = { type = "cloudwatch", uid = "$region_ds" }
                     options = {
                       showTime       = true
                       wrapLogMessage = true
@@ -848,8 +875,8 @@ resource "helm_release" "kube_prometheus_stack" {
                     targets = [
                       {
                         refId         = "A"
-                        region        = "ap-northeast-2"
-                        logGroupNames = ["/aws/eks/seoul-cluster/stockops/api"]
+                        region        = "$region_target"
+                        logGroupNames = ["/aws/eks/$cluster/stockops/api"]
                         queryMode     = "Logs"
                         expression    = "fields @timestamp, @message | filter @message like /$level/ and @message like /$search/ | sort @timestamp desc | limit 100"
                       }
@@ -860,7 +887,7 @@ resource "helm_release" "kube_prometheus_stack" {
                     title   = "🤖 AI 로그 (stockops-ai)"
                     type    = "logs"
                     gridPos = { x = 0, y = 11, w = 24, h = 11 }
-                    datasource = { type = "cloudwatch", uid = "cloudwatch" }
+                    datasource = { type = "cloudwatch", uid = "$region_ds" }
                     options = {
                       showTime       = true
                       wrapLogMessage = true
@@ -869,8 +896,8 @@ resource "helm_release" "kube_prometheus_stack" {
                     targets = [
                       {
                         refId         = "A"
-                        region        = "ap-northeast-2"
-                        logGroupNames = ["/aws/eks/seoul-cluster/stockops/ai"]
+                        region        = "$region_target"
+                        logGroupNames = ["/aws/eks/$cluster/stockops/ai"]
                         queryMode     = "Logs"
                         expression    = "fields @timestamp, @message | filter @message like /$level/ and @message like /$search/ | sort @timestamp desc | limit 100"
                       }
@@ -881,7 +908,7 @@ resource "helm_release" "kube_prometheus_stack" {
                     title   = "⚠️ API 경고/에러 (WARN / ERROR)"
                     type    = "logs"
                     gridPos = { x = 0, y = 22, w = 24, h = 10 }
-                    datasource = { type = "cloudwatch", uid = "cloudwatch" }
+                    datasource = { type = "cloudwatch", uid = "$region_ds" }
                     options = {
                       showTime       = true
                       wrapLogMessage = true
@@ -890,8 +917,8 @@ resource "helm_release" "kube_prometheus_stack" {
                     targets = [
                       {
                         refId         = "A"
-                        region        = "ap-northeast-2"
-                        logGroupNames = ["/aws/eks/seoul-cluster/stockops/api"]
+                        region        = "$region_target"
+                        logGroupNames = ["/aws/eks/$cluster/stockops/api"]
                         queryMode     = "Logs"
                         expression    = "fields @timestamp, @message | filter @message like /WARN|ERROR/ and @message like /$search/ | sort @timestamp desc | limit 100"
                       }
