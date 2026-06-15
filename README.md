@@ -61,7 +61,8 @@ AWS NLB (internet-facing)
 | 공식 템플릿 | Grafana Community | Kubernetes Cluster (ID: 7249) |
 | 공식 템플릿 | Grafana Community | Kubernetes Pod (ID: 6417) |
 | 커스텀 | 직접 제작 | 🏭 StockOps 인프라 현황 |
-| 커스텀 | 직접 제작 | 📈 StockOps 애플리케이션 메트릭 (api) |
+| 커스텀 | 직접 제작 | 📈 StockOps 애플리케이션 메트릭 (api + 🤖 ai) |
+| 커스텀 | 직접 제작 | 🛡️ StockOps WAF 보안 로그 (CloudWatch / 서울·오하이오·CloudFront) |
 
 ### 🏭 StockOps 인프라 현황 커스텀 대시보드 구성
 
@@ -83,7 +84,9 @@ AWS NLB (internet-facing)
 
 ### 📈 StockOps 애플리케이션 메트릭 커스텀 대시보드 구성
 
-Spring Boot api-server가 `/actuator/prometheus`로 노출하는 애플리케이션 메트릭을 ServiceMonitor로 수집해 시각화합니다.
+Spring Boot api-server(`/actuator/prometheus`)와 FastAPI ai-module(`/metrics`)이 노출하는 애플리케이션 메트릭을 각각 ServiceMonitor로 수집해 시각화합니다.
+
+**api 패널 (6종)**
 
 | 패널 | 타입 | 설명 |
 |------|------|------|
@@ -94,9 +97,18 @@ Spring Boot api-server가 `/actuator/prometheus`로 노출하는 애플리케이
 | 🗄️ DB 커넥션 풀 (HikariCP) | Timeseries | 활성/유휴/대기 커넥션 |
 | 🔌 Bedrock 회로차단기 상태 | Stat | resilience4j 회로차단기 (정상/차단) |
 
-> **메트릭 = api 전용**: ai-module(FastAPI)은 메트릭 대신 분산 추적(OpenTelemetry)으로 관측하기로 역할을 분리했다.
-> Spring 메트릭은 summary 타입이라 진짜 분위수(p95)는 불가, 평균(`_sum/_count`)으로 응답시간을 계산한다.
-> 에러율·회로차단기는 정상 상태에서 0으로 표시되며, `or vector(0)`로 No data 대신 0%를 표기한다.
+**🤖 ai 패널 (4종)**
+
+| 패널 | 타입 | 설명 |
+|------|------|------|
+| 🤖 AI 예측 처리량 (req/s) | Timeseries | 초당 예측 요청 수 |
+| 🤖 AI 예측 지연 p95 | Timeseries | 예측 소요 시간 (histogram → 진짜 p95) |
+| 🤖 모델 캐시 적중률 (%) | Timeseries | prophet 모델 캐시 hit/miss 비율 |
+| 🤖 예측 정확도 (MAPE %) | Timeseries | 실측 대비 예측 오차 (평가 데이터 축적 시 표시) |
+
+> **메트릭 = api + ai 양쪽**: 초기엔 ai에 `/metrics`가 없어 추적(OpenTelemetry)으로만 관측하고 메트릭은 api 전용이었으나, 앱 업데이트로 ai-module에 `prometheus-fastapi-instrumentator`가 추가되며 `/metrics`가 생겨 ServiceMonitor를 부활시켰다. 이제 **메트릭·추적 모두 api+ai 양쪽**을 관측한다.
+> Spring(api) 메트릭은 summary 타입이라 진짜 분위수(p95)는 불가, 평균(`_sum/_count`)으로 응답시간을 계산한다. 반면 FastAPI(ai) 메트릭은 histogram 타입이라 진짜 p95를 산출할 수 있다.
+> 에러율·회로차단기는 정상 상태에서 0으로 표시되며, `or vector(0)`로 No data 대신 0%를 표기한다. ai 캐시 적중률은 누적 hit/miss 비율(`sum(hit)/sum(total)`)로 계산해 idle 구간에도 값이 유지되게 했다.
 
 ### ServiceMonitor (앱 메트릭 수집)
 
@@ -194,10 +206,12 @@ kubectl get svc -n monitoring kube-prometheus-stack-grafana
 ### Grafana 접속
 
 ```
-URL: http://<EXTERNAL-IP>
+URL: https://grafana.siseon.live
 ID : admin
 PW : terraform.tfvars 에 설정한 값
 ```
+
+> Grafana는 ALB Ingress(AWS Load Balancer Controller) + ACM 와일드카드 인증서(`*.siseon.live`)로 HTTPS 노출한다. 기존 NLB(http) 방식에서 전환했으며, Route 53 alias 레코드(`grafana.siseon.live` → ALB)를 Terraform이 직접 관리한다. (진우 인프라의 ACM ARN·Route 53 zone_id를 `terraform_remote_state`로 읽기만 함)
 
 ---
 
