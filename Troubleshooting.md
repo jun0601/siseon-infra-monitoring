@@ -380,6 +380,92 @@ ServiceMonitor의 `port`(이름 기반)와 `targetPort`(숫자 기반)는 다르
 Service 포트에 반드시 `name`이 있어야 한다.
 
 
+## 14. Prometheus OOMKilled 크래시 루프 (전 패널 No data / connection refused)
+
+### 증상
+Grafana 전 패널 No data. 패널 edit 시 `Post "http://kube-prometheus-stack-prometheus:9090/...": connect: connection refused`.
+
+### 원인
+데이터소스 URL·설정은 정상. Prometheus 컨테이너가 메모리 limit(512Mi)을 초과해 반복 `OOMKilled`(exitCode 137) → 크래시 루프. 죽었다 뜨는 BackOff 구간에 9090 포트가 connection refused라, 그 순간 Grafana 쿼리가 실패한 것. WAF 대시보드·멀티리전 로그/추적 누적 + api 부하 트래픽으로 시계열 카디널리티(uri `/**`, status별)가 늘며 512Mi를 넘김.
+
+### 해결
+`prometheus.prometheusSpec.resources` 메모리 상향 (노드 t3.medium 4Gi라 수용 가능):
+```hcl
+limits   = { memory = "1.5Gi", cpu = "500m" }   # 512Mi → 1.5Gi
+requests = { memory = "768Mi", cpu = "100m" }   # 256Mi → 768Mi
+```
+적용 후 RESTARTS 0 유지, 9090 Ready, 타겟 up 확인 → Grafana 데이터소스 자동 복구.
+
+### 교훈
+전 패널 No data + connection refused면 데이터소스 설정보다 **Prometheus 파드 안정성(RESTARTS/OOMKilled)**을 먼저 의심해야 한다. request는 limit의 절반쯤으로 함께 올려 스케줄러가 빠듯한 노드에 배치해 또 OOM 나는 것을 막는다.
+
+---
+
+## 15. api 메트릭 패널 전체 No data (`/actuator/prometheus` 401)
+
+### 증상
+앱 재배포 후 앱 메트릭 대시보드 api 6패널 전부 No data. ai 패널은 정상.
+
+### 원인
+Prometheus 타겟 `serviceMonitor/monitoring/stockops-api/0`가 `health=down`, `lastError = server returned HTTP status 401`. api(Spring) `/actuator/prometheus`가 인증에 막혀 스크랩 거부. ai 타겟은 up이라 대시보드/ServiceMonitor 문제가 아닌 수집 경로 차단(회귀). api `SecurityConfig`는 `stockops.actuator.prometheus-public=true`일 때만 이 경로를 permitAll 하는데, 재배포 파드에 이 값이 없어 기본값 false → 401.
+
+### 해결
+인프라 레포(`seoul/kubernetes.tf`) api 컨테이너 env에 한 줄 추가(진우 영역):
+```hcl
+env {
+  name  = "STOCKOPS_ACTUATOR_PROMETHEUS_PUBLIC"
+  value = "true"
+}
+```
+> Spring Boot relaxed binding으로 `stockops.actuator.prometheus-public` 프로퍼티가 env `STOCKOPS_ACTUATOR_PROMETHEUS_PUBLIC`에 매핑된다. 적용 후 타겟 up → 부하 주면 api 6패널 채워짐.
+
+### 교훈
+대시보드가 비었을 때 "트래픽 없음"으로 단정하지 말 것. Prometheus 타겟 `health`/`lastError`를 먼저 봐야 한다 — 수집이 끊긴(401/down) 상태면 부하를 줘도 메모리에만 쌓이고 대시보드엔 안 뜬다.
+
+---
+
+## 16. ai 캐시 적중률 패널 0%/NaN (increase 윈도우 문제)
+
+### 증상
+모델 캐시 적중률 패널이 0%로 깔림 (그런데 예측 지연은 500→200ms로 떨어져 캐시가 실제 동작 중).
+
+### 원인
+메트릭(`ai_model_cache_events_total{result="hit"}=40, miss=1`, 실적중률 97.56%)은 정상. 패널 PromQL이 `increase([10m])`를 써서, 부하가 최근 10분보다 전에 끝나면 분자·분모 둘 다 0 → `0/0 = NaN`. `or vector(0)`는 빈 벡터만 0으로 치환하고 NaN은 그대로 둬서 No data/0% 표시.
+
+### 해결
+누적 비율 쿼리로 변경:
+```promql
+sum(ai_model_cache_events_total{result="hit"}) / sum(ai_model_cache_events_total) * 100 or vector(0)
+```
+idle 구간에도 누적 적중률(~97%)이 유지됨.
+
+### 교훈
+적중률·비율 패널에 `increase([window])`를 쓰면 트래픽 없는 구간에 0/0=NaN이 된다. 데모/저빈도 환경에선 누적 합(`sum`) 비율이 안정적이다. (단 카운터라 파드 재시작 시 리셋됨)
+
+> **참고 — MAPE 패널 No data**: `ai_evaluation_mape_percent_count=0`. 평가 이벤트(실측 vs 예측 비교) 자체가 발생 안 함 → 데이터 문제(쿼리 무관). generate(미래 예측)로는 안 채워지며, 별도 모델 평가/백테스트 경로가 호출돼야 한다(앱 영역). 측정 메트릭·패널은 구축돼 있어 평가 데이터 축적 시 자동 표시된다.
+
+---
+
+## 17. WAF 보안 대시보드 — count vs block 분리
+
+### 증상
+WAF 로그를 단순히 `action=BLOCK`만 집계하니 SQLi/XSS 공격 시도가 대시보드에서 안 잡힘.
+
+### 원인
+진우 인프라의 WAF는 운영 안전을 위해 대부분 룰이 관찰(count) 모드. SQLi/CommonRuleSet(XSS)은 count라 로그에 `action=ALLOW`로 찍힘 → BLOCK만 세면 공격이 안 보임. 실제 BLOCK은 KnownBadInputs 정도.
+
+### 해결
+패널을 두 축으로 분리:
+- **차단(BLOCK)** — `filter action="BLOCK"` 룰별 집계 (실제 막은 것)
+- **탐지(count)** — `awswaf:managed` 라벨 파싱으로 ALLOW로 통과된 공격 시도까지 집계
+
+상단에 총 차단/총 탐지/공격 소스 IP 수 stat 3종, 하단에 각각의 룰별·IP별 상세 테이블 3종을 stat↔테이블 1:1 대응으로 배치. 리전 드롭다운(서울 ALB/오하이오 ALB/CloudFront)은 로그그룹 패턴이 제각각이라 풀네임을 직접 나열. 새 폴더 `🛡️ 보안 모니터링`에 위치(주제는 보안이나 Grafana 대시보드라 monitoring 레포 관리).
+
+### 교훈
+WAF 대시보드는 룰이 차단 모드인지 관찰 모드인지를 먼저 이해하고, '막은 것(block)'과 '들어온 것(count)'을 분리해야 한다. count 모드 공격은 ALLOW로 찍히므로 라벨(`awswaf:managed`) 기반으로 탐지해야 누락되지 않는다.
+
+---
+
 ## 📋 트러블슈팅 요약
 
 | # | 문제 | 원인 | 해결 |
@@ -397,3 +483,7 @@ Service 포트에 반드시 `name`이 있어야 한다.
 | 11 | ServiceMonitor가 Service 못 찾음 | Service 메타데이터에 라벨 누락 | Service metadata에 app 라벨 추가 |
 | 12 | ServiceMonitor CRD 미존재 apply 실패 | kubernetes_manifest는 plan 시 CRD 필요 | Helm(CRD) 먼저 -target apply 후 전체 apply |
 | 13 | ServiceMonitor 포트 매칭 실패 | port 이름(http)에 대응하는 Service 포트 name 없음 | targetPort 숫자 지정 또는 Service 포트에 name 부여 |
+| 14 | 전 패널 No data (connection refused) | Prometheus OOMKilled 크래시 루프 | 메모리 limit 512Mi→1.5Gi 상향 |
+| 15 | api 메트릭 패널 전체 No data | `/actuator/prometheus` 401 (수집 차단) | api env `STOCKOPS_ACTUATOR_PROMETHEUS_PUBLIC=true` 추가 |
+| 16 | ai 캐시 적중률 0%/NaN | increase([10m]) idle 구간 0/0=NaN | 누적 비율 `sum(hit)/sum(total)` 쿼리로 변경 |
+| 17 | WAF 공격이 대시보드에 안 잡힘 | count 모드 룰은 ALLOW로 찍힘 | 차단(BLOCK)/탐지(managed 라벨) 패널 분리 |
