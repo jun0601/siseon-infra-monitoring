@@ -1265,7 +1265,7 @@ resource "helm_release" "kube_prometheus_stack" {
                       }
                     }
                     targets = [{
-                      expr         = "sum(increase(ai_model_cache_events_total{result=\"hit\"}[10m])) / sum(increase(ai_model_cache_events_total[10m])) * 100 or vector(0)"
+                      expr         = "sum(ai_model_cache_events_total{result=\"hit\"}) / sum(ai_model_cache_events_total) * 100 or vector(0)"
                       legendFormat = "캐시 적중률"
                     }]
                   },
@@ -1488,11 +1488,11 @@ resource "helm_release" "kube_prometheus_stack" {
           retention = "7d"
           resources = {
             requests = {
-              memory = "256Mi"
+              memory = "768Mi"
               cpu    = "100m"
             }
             limits = {
-              memory = "512Mi"
+              memory = "1.5Gi"
               cpu    = "500m"
             }
           }
