@@ -6,6 +6,17 @@ locals {
   eks_oidc_issuer = replace(data.aws_eks_cluster.seoul.identity[0].oidc[0].issuer, "https://", "")
 }
 
+# 진우(infra) seoul state에서 ACM 인증서 ARN + Route53 zone id 가져오기
+data "terraform_remote_state" "seoul" {
+  backend = "s3"
+  config = {
+    bucket  = "siseon-terraform-state"
+    key     = "infra/seoul/terraform.tfstate"
+    region  = "ap-northeast-2"
+    profile = "siseon"
+  }
+}
+
 # monitoring 네임스페이스 생성
 resource "kubernetes_namespace" "monitoring" {
   metadata {
@@ -39,9 +50,25 @@ resource "helm_release" "kube_prometheus_stack" {
         }
 
         service = {
-          type = "LoadBalancer"
+          type = "ClusterIP"
+        }
+
+        ingress = {
+          enabled          = true
+          ingressClassName = "alb"
+          hosts            = ["grafana.siseon.live"]
           annotations = {
-            "service.beta.kubernetes.io/aws-load-balancer-scheme" = "internet-facing"
+            "alb.ingress.kubernetes.io/scheme"          = "internet-facing"
+            "alb.ingress.kubernetes.io/target-type"     = "ip"
+            "alb.ingress.kubernetes.io/listen-ports"    = "[{\"HTTP\": 80}, {\"HTTPS\": 443}]"
+            "alb.ingress.kubernetes.io/ssl-redirect"    = "443"
+            "alb.ingress.kubernetes.io/certificate-arn" = data.terraform_remote_state.seoul.outputs.acm_certificate_arn_seoul
+          }
+        }
+
+        "grafana.ini" = {
+          server = {
+            root_url = "https://grafana.siseon.live"
           }
         }
 
@@ -160,6 +187,17 @@ resource "helm_release" "kube_prometheus_stack" {
                 editable        = true
                 options = {
                   path = "/var/lib/grafana/dashboards/appmetric-custom"
+                }
+              },
+              {
+                name            = "wafsec-custom"
+                orgId           = 1
+                folder          = "🛡️ 보안 모니터링"
+                type            = "file"
+                disableDeletion = true
+                editable        = true
+                options = {
+                  path = "/var/lib/grafana/dashboards/wafsec-custom"
                 }
               }
             ]
@@ -1264,6 +1302,183 @@ resource "helm_release" "kube_prometheus_stack" {
               })
             }
           }
+
+          wafsec-custom = {
+            stockops-waf = {
+              json = jsonencode({
+                title         = "🛡️ StockOps WAF 보안 로그"
+                uid           = "stockops-waf-custom"
+                timezone      = "Asia/Seoul"
+                refresh       = "30s"
+                schemaVersion = 38
+                tags          = ["stockops", "security", "waf"]
+                time = {
+                  from = "now-3h"
+                  to   = "now"
+                }
+
+                templating = {
+                  list = [
+                    {
+                      name       = "waf_target"
+                      type       = "custom"
+                      label      = "🌐 WAF 대상"
+                      query      = "aws-waf-logs-stockops-alb-seoul : ap-northeast-2,aws-waf-logs-stockops-alb-ohio : us-east-2,aws-waf-logs-stockops-cloudfront : us-east-1"
+                      includeAll = false
+                      multi      = false
+                      current    = { text = "aws-waf-logs-stockops-alb-seoul", value = "ap-northeast-2" }
+                    }
+                  ]
+                }
+
+                panels = [
+                  {
+                    id         = 1
+                    title      = "🔴 총 차단(BLOCK)"
+                    type       = "stat"
+                    gridPos    = { x = 0, y = 0, w = 8, h = 5 }
+                    datasource = { type = "cloudwatch", uid = "cloudwatch" }
+                    fieldConfig = {
+                      defaults = {
+                        unit  = "none"
+                        color = { mode = "fixed", fixedColor = "red" }
+                      }
+                    }
+                    options = {
+                      colorMode = "value"
+                      graphMode = "none"
+                    }
+                    targets = [
+                      {
+                        refId         = "A"
+                        region        = "$waf_target"
+                        logGroupNames = ["$${waf_target:text}"]
+                        queryMode     = "Logs"
+                        expression    = "filter action = \"BLOCK\" | stats count() as v"
+                      }
+                    ]
+                  },
+                  {
+                    id         = 5
+                    title      = "🟡 총 탐지(공격 시도)"
+                    type       = "stat"
+                    gridPos    = { x = 8, y = 0, w = 8, h = 5 }
+                    datasource = { type = "cloudwatch", uid = "cloudwatch" }
+                    fieldConfig = {
+                      defaults = {
+                        unit  = "none"
+                        color = { mode = "fixed", fixedColor = "orange" }
+                      }
+                    }
+                    options = {
+                      colorMode = "value"
+                      graphMode = "none"
+                    }
+                    targets = [
+                      {
+                        refId         = "A"
+                        region        = "$waf_target"
+                        logGroupNames = ["$${waf_target:text}"]
+                        queryMode     = "Logs"
+                        expression    = "filter labels.0.name like /awswaf:managed/ | stats count() as v"
+                      }
+                    ]
+                  },
+                  {
+                    id         = 6
+                    title      = "🌍 공격 소스 IP 수"
+                    type       = "stat"
+                    gridPos    = { x = 16, y = 0, w = 8, h = 5 }
+                    datasource = { type = "cloudwatch", uid = "cloudwatch" }
+                    fieldConfig = {
+                      defaults = {
+                        unit  = "none"
+                        color = { mode = "fixed", fixedColor = "blue" }
+                      }
+                    }
+                    options = {
+                      colorMode = "value"
+                      graphMode = "none"
+                    }
+                    targets = [
+                      {
+                        refId         = "A"
+                        region        = "$waf_target"
+                        logGroupNames = ["$${waf_target:text}"]
+                        queryMode     = "Logs"
+                        expression    = "stats count_distinct(httpRequest.clientIp) as v"
+                      }
+                    ]
+                  },
+                  {
+                    id         = 7
+                    title      = "🔴 차단(BLOCK) — 룰별 건수"
+                    type       = "table"
+                    gridPos    = { x = 0, y = 5, w = 8, h = 9 }
+                    datasource = { type = "cloudwatch", uid = "cloudwatch" }
+                    targets = [
+                      {
+                        refId         = "A"
+                        region        = "$waf_target"
+                        logGroupNames = ["$${waf_target:text}"]
+                        queryMode     = "Logs"
+                        expression    = "filter action = \"BLOCK\" | stats count() as blocks by terminatingRuleId | sort blocks desc"
+                      }
+                    ]
+                  },
+                  {
+                    id         = 2
+                    title      = "🟡 탐지(count 모드) — 공격 시도 룰별 (ALLOW 포함)"
+                    type       = "table"
+                    gridPos    = { x = 8, y = 5, w = 8, h = 9 }
+                    datasource = { type = "cloudwatch", uid = "cloudwatch" }
+                    targets = [
+                      {
+                        refId         = "A"
+                        region        = "$waf_target"
+                        logGroupNames = ["$${waf_target:text}"]
+                        queryMode     = "Logs"
+                        expression    = "filter @message like /awswaf:managed/ | parse @message /\"name\":\"(?<attackRule>awswaf:managed:[^\"]+)\"/ | stats count() as detections by attackRule | sort detections desc"
+                      }
+                    ]
+                  },
+                  {
+                    id         = 3
+                    title      = "🌍 공격 소스 IP Top 10"
+                    type       = "table"
+                    gridPos    = { x = 16, y = 5, w = 8, h = 9 }
+                    datasource = { type = "cloudwatch", uid = "cloudwatch" }
+                    targets = [
+                      {
+                        refId         = "A"
+                        region        = "$waf_target"
+                        logGroupNames = ["$${waf_target:text}"]
+                        queryMode     = "Logs"
+                        expression    = "stats count() as requests by httpRequest.clientIp | sort requests desc | limit 10"
+                      }
+                    ]
+                  },
+                  {
+                    id         = 4
+                    title      = "📋 최근 공격 원본"
+                    type       = "table"
+                    gridPos    = { x = 0, y = 14, w = 24, h = 10 }
+                    datasource = { type = "cloudwatch", uid = "cloudwatch" }
+                    options    = { showHeader = true }
+                    targets = [
+                      {
+                        refId         = "A"
+                        region        = "$waf_target"
+                        logGroupNames = ["$${waf_target:text}"]
+                        queryMode     = "Logs"
+                        expression    = "fields @timestamp, action, terminatingRuleId, httpRequest.clientIp, httpRequest.uri, httpRequest.country | sort @timestamp desc | limit 100"
+                      }
+                    ]
+                  }
+                ]
+              })
+            }
+          }
         }
       }
 
@@ -1433,4 +1648,37 @@ resource "aws_iam_role_policy_attachment" "grafana_s3" {
 resource "aws_iam_role_policy_attachment" "grafana_cloudwatch_logs" {
   role       = aws_iam_role.grafana_athena_role.name
   policy_arn = "arn:aws:iam::aws:policy/CloudWatchLogsReadOnlyAccess"
+}
+
+# ─────────────────────────────────────────────
+# Grafana 도메인 (grafana.siseon.live) + HTTPS
+# Ingress(ALB)가 ALB를 만들면, 프로비저닝 대기 후 ALB를 조회해 Route53 alias 연결
+# ─────────────────────────────────────────────
+resource "time_sleep" "wait_for_grafana_alb" {
+  depends_on      = [helm_release.kube_prometheus_stack]
+  create_duration = "240s"
+}
+
+data "aws_lb" "grafana" {
+  depends_on = [time_sleep.wait_for_grafana_alb]
+
+  tags = {
+    "ingress.k8s.aws/stack" = "monitoring/kube-prometheus-stack-grafana"
+  }
+}
+
+resource "aws_route53_record" "grafana" {
+  zone_id = data.terraform_remote_state.seoul.outputs.route53_zone_id
+  name    = "grafana.siseon.live"
+  type    = "A"
+
+  alias {
+    name                   = data.aws_lb.grafana.dns_name
+    zone_id                = data.aws_lb.grafana.zone_id
+    evaluate_target_health = true
+  }
+}
+
+output "grafana_url" {
+  value = "https://grafana.siseon.live"
 }
