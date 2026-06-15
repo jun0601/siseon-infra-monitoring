@@ -129,7 +129,7 @@ resource "helm_release" "kube_prometheus_stack" {
                   path = "/var/lib/grafana/dashboards/infra-custom"
                 }
               },
-{
+              {
                 name            = "iot-custom"
                 orgId           = 1
                 folder          = "🚀 애플리케이션 모니터링"
@@ -199,12 +199,26 @@ resource "helm_release" "kube_prometheus_stack" {
                   to   = "now"
                 }
 
+                templating = {
+                  list = [
+                    {
+                      name       = "region"
+                      type       = "custom"
+                      label      = "🌐 리전"
+                      query      = "서울 : seoul,미국(오하이오) : ohio"
+                      includeAll = false
+                      multi      = false
+                      current    = { text = "서울", value = "seoul" }
+                    }
+                  ]
+                }
+
                 panels = [
                   {
-                    id      = 1
-                    title   = "🖥️ 노드별 CPU 사용률"
-                    type    = "gauge"
-                    gridPos = { x = 0, y = 0, w = 12, h = 6 }
+                    id         = 1
+                    title      = "🖥️ 노드별 CPU 사용률"
+                    type       = "gauge"
+                    gridPos    = { x = 0, y = 0, w = 12, h = 6 }
                     datasource = { type = "prometheus", uid = "prometheus" }
                     fieldConfig = {
                       defaults = {
@@ -227,10 +241,10 @@ resource "helm_release" "kube_prometheus_stack" {
                     }]
                   },
                   {
-                    id      = 2
-                    title   = "💾 노드별 메모리 사용률"
-                    type    = "gauge"
-                    gridPos = { x = 12, y = 0, w = 12, h = 6 }
+                    id         = 2
+                    title      = "💾 노드별 메모리 사용률"
+                    type       = "gauge"
+                    gridPos    = { x = 12, y = 0, w = 12, h = 6 }
                     datasource = { type = "prometheus", uid = "prometheus" }
                     fieldConfig = {
                       defaults = {
@@ -253,16 +267,16 @@ resource "helm_release" "kube_prometheus_stack" {
                     }]
                   },
                   {
-                    id      = 3
-                    title   = "✅ Running Pods"
-                    type    = "stat"
-                    gridPos = { x = 0, y = 6, w = 6, h = 5 }
+                    id         = 3
+                    title      = "✅ Running Pods"
+                    type       = "stat"
+                    gridPos    = { x = 0, y = 6, w = 6, h = 5 }
                     datasource = { type = "prometheus", uid = "prometheus" }
                     fieldConfig = {
                       defaults = {
                         unit = "short"
                         thresholds = {
-                          mode = "absolute"
+                          mode  = "absolute"
                           steps = [{ color = "green", value = null }]
                         }
                       }
@@ -273,10 +287,10 @@ resource "helm_release" "kube_prometheus_stack" {
                     }]
                   },
                   {
-                    id      = 4
-                    title   = "🚨 Failed Pods"
-                    type    = "stat"
-                    gridPos = { x = 6, y = 6, w = 6, h = 5 }
+                    id         = 4
+                    title      = "🚨 Failed Pods"
+                    type       = "stat"
+                    gridPos    = { x = 6, y = 6, w = 6, h = 5 }
                     datasource = { type = "prometheus", uid = "prometheus" }
                     fieldConfig = {
                       defaults = {
@@ -296,16 +310,16 @@ resource "helm_release" "kube_prometheus_stack" {
                     }]
                   },
                   {
-                    id      = 5
-                    title   = "🖧 Node 수"
-                    type    = "stat"
-                    gridPos = { x = 12, y = 6, w = 6, h = 5 }
+                    id         = 5
+                    title      = "🖧 Node 수"
+                    type       = "stat"
+                    gridPos    = { x = 12, y = 6, w = 6, h = 5 }
                     datasource = { type = "prometheus", uid = "prometheus" }
                     fieldConfig = {
                       defaults = {
                         unit = "short"
                         thresholds = {
-                          mode = "absolute"
+                          mode  = "absolute"
                           steps = [{ color = "blue", value = null }]
                         }
                       }
@@ -316,10 +330,10 @@ resource "helm_release" "kube_prometheus_stack" {
                     }]
                   },
                   {
-                    id      = 6
-                    title   = "⏳ Pending Pods"
-                    type    = "stat"
-                    gridPos = { x = 18, y = 6, w = 6, h = 5 }
+                    id         = 6
+                    title      = "⏳ Pending Pods"
+                    type       = "stat"
+                    gridPos    = { x = 18, y = 6, w = 6, h = 5 }
                     datasource = { type = "prometheus", uid = "prometheus" }
                     fieldConfig = {
                       defaults = {
@@ -339,10 +353,10 @@ resource "helm_release" "kube_prometheus_stack" {
                     }]
                   },
                   {
-                    id      = 7
-                    title   = "⚡ StockOps Pod CPU 사용률"
-                    type    = "timeseries"
-                    gridPos = { x = 0, y = 11, w = 12, h = 6 }
+                    id         = 7
+                    title      = "⚡ StockOps Pod CPU 사용률"
+                    type       = "timeseries"
+                    gridPos    = { x = 0, y = 11, w = 12, h = 6 }
                     datasource = { type = "prometheus", uid = "prometheus" }
                     fieldConfig = {
                       defaults = {
@@ -366,10 +380,10 @@ resource "helm_release" "kube_prometheus_stack" {
                     }]
                   },
                   {
-                    id      = 8
-                    title   = "💡 StockOps Pod 메모리 사용량"
-                    type    = "timeseries"
-                    gridPos = { x = 12, y = 11, w = 12, h = 6 }
+                    id         = 8
+                    title      = "💡 StockOps Pod 메모리 사용량"
+                    type       = "timeseries"
+                    gridPos    = { x = 12, y = 11, w = 12, h = 6 }
                     datasource = { type = "prometheus", uid = "prometheus" }
                     fieldConfig = {
                       defaults = {
@@ -397,10 +411,10 @@ resource "helm_release" "kube_prometheus_stack" {
                     }]
                   },
                   {
-                    id      = 9
-                    title   = "📥 네트워크 수신 트래픽"
-                    type    = "timeseries"
-                    gridPos = { x = 0, y = 17, w = 12, h = 6 }
+                    id         = 9
+                    title      = "📥 네트워크 수신 트래픽"
+                    type       = "timeseries"
+                    gridPos    = { x = 0, y = 17, w = 12, h = 6 }
                     datasource = { type = "prometheus", uid = "prometheus" }
                     fieldConfig = {
                       defaults = {
@@ -424,10 +438,10 @@ resource "helm_release" "kube_prometheus_stack" {
                     }]
                   },
                   {
-                    id      = 10
-                    title   = "📤 네트워크 송신 트래픽"
-                    type    = "timeseries"
-                    gridPos = { x = 12, y = 17, w = 12, h = 6 }
+                    id         = 10
+                    title      = "📤 네트워크 송신 트래픽"
+                    type       = "timeseries"
+                    gridPos    = { x = 12, y = 17, w = 12, h = 6 }
                     datasource = { type = "prometheus", uid = "prometheus" }
                     fieldConfig = {
                       defaults = {
@@ -451,10 +465,10 @@ resource "helm_release" "kube_prometheus_stack" {
                     }]
                   },
                   {
-                    id      = 11
-                    title   = "🔄 Pod 재시작 횟수"
-                    type    = "table"
-                    gridPos = { x = 0, y = 23, w = 12, h = 6 }
+                    id         = 11
+                    title      = "🔄 Pod 재시작 횟수"
+                    type       = "table"
+                    gridPos    = { x = 0, y = 23, w = 12, h = 6 }
                     datasource = { type = "prometheus", uid = "prometheus" }
                     targets = [{
                       expr         = "sum(kube_pod_container_status_restarts_total{namespace='stockops'}) by (pod)"
@@ -463,10 +477,10 @@ resource "helm_release" "kube_prometheus_stack" {
                     }]
                   },
                   {
-                    id      = 12
-                    title   = "🟢 Node 상태"
-                    type    = "table"
-                    gridPos = { x = 12, y = 23, w = 12, h = 6 }
+                    id         = 12
+                    title      = "🟢 Node 상태"
+                    type       = "table"
+                    gridPos    = { x = 12, y = 23, w = 12, h = 6 }
                     datasource = { type = "prometheus", uid = "prometheus" }
                     fieldConfig = {
                       defaults = {
@@ -486,10 +500,10 @@ resource "helm_release" "kube_prometheus_stack" {
                     }]
                   },
                   {
-                    id      = 13
-                    title   = "📋 StockOps 서비스별 Pod 상태"
-                    type    = "table"
-                    gridPos = { x = 0, y = 29, w = 24, h = 5 }
+                    id         = 13
+                    title      = "📋 StockOps 서비스별 Pod 상태"
+                    type       = "table"
+                    gridPos    = { x = 0, y = 29, w = 24, h = 5 }
                     datasource = { type = "prometheus", uid = "prometheus" }
                     targets = [
                       {
@@ -529,8 +543,8 @@ resource "helm_release" "kube_prometheus_stack" {
                         rawSQL = "SELECT DISTINCT site_id FROM stockops_sensor.sensor_data WHERE year='2026' AND month='06'"
                         format = 0
                         connectionArgs = {
-                          catalog   = "AwsDataCatalog"
-                          database  = "stockops_sensor"
+                          catalog  = "AwsDataCatalog"
+                          database = "stockops_sensor"
                         }
                       }
                       includeAll = false
@@ -541,10 +555,10 @@ resource "helm_release" "kube_prometheus_stack" {
 
                 panels = [
                   {
-                    id      = 1
-                    title   = "🌡️ 온도 (°C)"
-                    type    = "timeseries"
-                    gridPos = { x = 0, y = 0, w = 8, h = 8 }
+                    id         = 1
+                    title      = "🌡️ 온도 (°C)"
+                    type       = "timeseries"
+                    gridPos    = { x = 0, y = 0, w = 8, h = 8 }
                     datasource = { type = "grafana-athena-datasource", uid = "athena" }
                     fieldConfig = {
                       defaults = {
@@ -578,10 +592,10 @@ resource "helm_release" "kube_prometheus_stack" {
                     }]
                   },
                   {
-                    id      = 2
-                    title   = "💧 습도 (%)"
-                    type    = "timeseries"
-                    gridPos = { x = 8, y = 0, w = 8, h = 8 }
+                    id         = 2
+                    title      = "💧 습도 (%)"
+                    type       = "timeseries"
+                    gridPos    = { x = 8, y = 0, w = 8, h = 8 }
                     datasource = { type = "grafana-athena-datasource", uid = "athena" }
                     fieldConfig = {
                       defaults = {
@@ -615,10 +629,10 @@ resource "helm_release" "kube_prometheus_stack" {
                     }]
                   },
                   {
-                    id      = 3
-                    title   = "🔵 기압 (hPa)"
-                    type    = "timeseries"
-                    gridPos = { x = 16, y = 0, w = 8, h = 8 }
+                    id         = 3
+                    title      = "🔵 기압 (hPa)"
+                    type       = "timeseries"
+                    gridPos    = { x = 16, y = 0, w = 8, h = 8 }
                     datasource = { type = "grafana-athena-datasource", uid = "athena" }
                     fieldConfig = {
                       defaults = {
@@ -644,10 +658,10 @@ resource "helm_release" "kube_prometheus_stack" {
                     }]
                   },
                   {
-                    id      = 4
-                    title   = "😷 PM2.5 (μg/m³)"
-                    type    = "timeseries"
-                    gridPos = { x = 0, y = 8, w = 12, h = 8 }
+                    id         = 4
+                    title      = "😷 PM2.5 (μg/m³)"
+                    type       = "timeseries"
+                    gridPos    = { x = 0, y = 8, w = 12, h = 8 }
                     datasource = { type = "grafana-athena-datasource", uid = "athena" }
                     fieldConfig = {
                       defaults = {
@@ -682,10 +696,10 @@ resource "helm_release" "kube_prometheus_stack" {
                     }]
                   },
                   {
-                    id      = 5
-                    title   = "🌫️ PM10 (μg/m³)"
-                    type    = "timeseries"
-                    gridPos = { x = 12, y = 8, w = 12, h = 8 }
+                    id         = 5
+                    title      = "🌫️ PM10 (μg/m³)"
+                    type       = "timeseries"
+                    gridPos    = { x = 12, y = 8, w = 12, h = 8 }
                     datasource = { type = "grafana-athena-datasource", uid = "athena" }
                     fieldConfig = {
                       defaults = {
@@ -719,11 +733,11 @@ resource "helm_release" "kube_prometheus_stack" {
                       }
                     }]
                   },
-                  {   
-                    id      = 6
-                    title   = "🚪 도어 상태"
-                    type    = "stat"
-                    gridPos = { x = 0, y = 16, w = 6, h = 4 }
+                  {
+                    id         = 6
+                    title      = "🚪 도어 상태"
+                    type       = "stat"
+                    gridPos    = { x = 0, y = 16, w = 6, h = 4 }
                     datasource = { type = "grafana-athena-datasource", uid = "athena" }
                     fieldConfig = {
                       defaults = {
@@ -758,10 +772,10 @@ resource "helm_release" "kube_prometheus_stack" {
                     }]
                   },
                   {
-                    id      = 7
-                    title   = "👤 재실 감지"
-                    type    = "stat"
-                    gridPos = { x = 6, y = 16, w = 6, h = 4 }
+                    id         = 7
+                    title      = "👤 재실 감지"
+                    type       = "stat"
+                    gridPos    = { x = 6, y = 16, w = 6, h = 4 }
                     datasource = { type = "grafana-athena-datasource", uid = "athena" }
                     fieldConfig = {
                       defaults = {
@@ -832,41 +846,24 @@ resource "helm_release" "kube_prometheus_stack" {
                       current    = { text = "전체", value = ".*" }
                     },
                     {
-                      name    = "region_ds"
-                      type    = "datasource"
-                      label   = "🌐 리전"
-                      query   = "cloudwatch"
-                      current = { text = "CloudWatch", value = "cloudwatch" }
-                    },
-                    {
-                      name       = "cluster"
-                      type       = "custom"
-                      label      = "클러스터"
-                      query      = "서울 : seoul-cluster,미국(오하이오) : ohio-cluster"
-                      includeAll = false
-                      multi      = false
-                      current    = { text = "서울", value = "seoul-cluster" }
-                    },
-                    {
                       name       = "region_target"
                       type       = "custom"
-                      label      = "AWS 리전"
-                      query      = "서울 : ap-northeast-2,미국(오하이오) : us-east-2"
+                      label      = "🌐 리전"
+                      query      = "seoul-cluster : ap-northeast-2,ohio-cluster : us-east-2"
                       includeAll = false
                       multi      = false
-                      current    = { text = "서울", value = "ap-northeast-2" }
-                      hide       = 2
+                      current    = { text = "seoul-cluster", value = "ap-northeast-2" }
                     }
                   ]
                 }
 
                 panels = [
                   {
-                    id      = 1
-                    title   = "📋 API 로그 (stockops-api)"
-                    type    = "logs"
-                    gridPos = { x = 0, y = 0, w = 24, h = 11 }
-                    datasource = { type = "cloudwatch", uid = "$region_ds" }
+                    id         = 1
+                    title      = "📋 API 로그 (stockops-api)"
+                    type       = "logs"
+                    gridPos    = { x = 0, y = 0, w = 24, h = 11 }
+                    datasource = { type = "cloudwatch", uid = "cloudwatch" }
                     options = {
                       showTime       = true
                       wrapLogMessage = true
@@ -876,18 +873,18 @@ resource "helm_release" "kube_prometheus_stack" {
                       {
                         refId         = "A"
                         region        = "$region_target"
-                        logGroupNames = ["/aws/eks/$cluster/stockops/api"]
+                        logGroupNames = ["/aws/eks/$${region_target:text}/stockops/api"]
                         queryMode     = "Logs"
                         expression    = "fields @timestamp, @message | filter @message like /$level/ and @message like /$search/ | sort @timestamp desc | limit 100"
                       }
                     ]
                   },
                   {
-                    id      = 2
-                    title   = "🤖 AI 로그 (stockops-ai)"
-                    type    = "logs"
-                    gridPos = { x = 0, y = 11, w = 24, h = 11 }
-                    datasource = { type = "cloudwatch", uid = "$region_ds" }
+                    id         = 2
+                    title      = "🤖 AI 로그 (stockops-ai)"
+                    type       = "logs"
+                    gridPos    = { x = 0, y = 11, w = 24, h = 11 }
+                    datasource = { type = "cloudwatch", uid = "cloudwatch" }
                     options = {
                       showTime       = true
                       wrapLogMessage = true
@@ -897,18 +894,18 @@ resource "helm_release" "kube_prometheus_stack" {
                       {
                         refId         = "A"
                         region        = "$region_target"
-                        logGroupNames = ["/aws/eks/$cluster/stockops/ai"]
+                        logGroupNames = ["/aws/eks/$${region_target:text}/stockops/ai"]
                         queryMode     = "Logs"
                         expression    = "fields @timestamp, @message | filter @message like /$level/ and @message like /$search/ | sort @timestamp desc | limit 100"
                       }
                     ]
                   },
                   {
-                    id      = 3
-                    title   = "⚠️ API 경고/에러 (WARN / ERROR)"
-                    type    = "logs"
-                    gridPos = { x = 0, y = 22, w = 24, h = 10 }
-                    datasource = { type = "cloudwatch", uid = "$region_ds" }
+                    id         = 3
+                    title      = "⚠️ API 경고/에러 (WARN / ERROR)"
+                    type       = "logs"
+                    gridPos    = { x = 0, y = 22, w = 24, h = 10 }
+                    datasource = { type = "cloudwatch", uid = "cloudwatch" }
                     options = {
                       showTime       = true
                       wrapLogMessage = true
@@ -918,7 +915,7 @@ resource "helm_release" "kube_prometheus_stack" {
                       {
                         refId         = "A"
                         region        = "$region_target"
-                        logGroupNames = ["/aws/eks/$cluster/stockops/api"]
+                        logGroupNames = ["/aws/eks/$${region_target:text}/stockops/api"]
                         queryMode     = "Logs"
                         expression    = "fields @timestamp, @message | filter @message like /WARN|ERROR/ and @message like /$search/ | sort @timestamp desc | limit 100"
                       }
@@ -942,12 +939,26 @@ resource "helm_release" "kube_prometheus_stack" {
                   to   = "now"
                 }
 
+                templating = {
+                  list = [
+                    {
+                      name       = "region"
+                      type       = "custom"
+                      label      = "🌐 리전"
+                      query      = "서울 : seoul,미국(오하이오) : ohio"
+                      includeAll = false
+                      multi      = false
+                      current    = { text = "서울", value = "seoul" }
+                    }
+                  ]
+                }
+
                 panels = [
                   {
-                    id      = 1
-                    title   = "🚀 API 처리량 (req/s)"
-                    type    = "timeseries"
-                    gridPos = { x = 0, y = 0, w = 12, h = 7 }
+                    id         = 1
+                    title      = "🚀 API 처리량 (req/s)"
+                    type       = "timeseries"
+                    gridPos    = { x = 0, y = 0, w = 12, h = 7 }
                     datasource = { type = "prometheus", uid = "prometheus" }
                     fieldConfig = {
                       defaults = {
@@ -971,10 +982,10 @@ resource "helm_release" "kube_prometheus_stack" {
                     }]
                   },
                   {
-                    id      = 2
-                    title   = "❌ 에러율 (%)"
-                    type    = "timeseries"
-                    gridPos = { x = 12, y = 0, w = 12, h = 7 }
+                    id         = 2
+                    title      = "❌ 에러율 (%)"
+                    type       = "timeseries"
+                    gridPos    = { x = 12, y = 0, w = 12, h = 7 }
                     datasource = { type = "prometheus", uid = "prometheus" }
                     fieldConfig = {
                       defaults = {
@@ -1000,10 +1011,10 @@ resource "helm_release" "kube_prometheus_stack" {
                     }]
                   },
                   {
-                    id      = 3
-                    title   = "⏱️ 평균 응답시간"
-                    type    = "timeseries"
-                    gridPos = { x = 0, y = 7, w = 12, h = 7 }
+                    id         = 3
+                    title      = "⏱️ 평균 응답시간"
+                    type       = "timeseries"
+                    gridPos    = { x = 0, y = 7, w = 12, h = 7 }
                     datasource = { type = "prometheus", uid = "prometheus" }
                     fieldConfig = {
                       defaults = {
@@ -1035,10 +1046,10 @@ resource "helm_release" "kube_prometheus_stack" {
                     }]
                   },
                   {
-                    id      = 4
-                    title   = "🧠 JVM 힙 메모리"
-                    type    = "timeseries"
-                    gridPos = { x = 12, y = 7, w = 12, h = 7 }
+                    id         = 4
+                    title      = "🧠 JVM 힙 메모리"
+                    type       = "timeseries"
+                    gridPos    = { x = 12, y = 7, w = 12, h = 7 }
                     datasource = { type = "prometheus", uid = "prometheus" }
                     fieldConfig = {
                       defaults = {
@@ -1068,10 +1079,10 @@ resource "helm_release" "kube_prometheus_stack" {
                     ]
                   },
                   {
-                    id      = 5
-                    title   = "🗄️ DB 커넥션 풀 (HikariCP)"
-                    type    = "timeseries"
-                    gridPos = { x = 0, y = 14, w = 12, h = 7 }
+                    id         = 5
+                    title      = "🗄️ DB 커넥션 풀 (HikariCP)"
+                    type       = "timeseries"
+                    gridPos    = { x = 0, y = 14, w = 12, h = 7 }
                     datasource = { type = "prometheus", uid = "prometheus" }
                     fieldConfig = {
                       defaults = {
@@ -1105,10 +1116,10 @@ resource "helm_release" "kube_prometheus_stack" {
                     ]
                   },
                   {
-                    id      = 6
-                    title   = "🔌 Bedrock 회로차단기 상태"
-                    type    = "stat"
-                    gridPos = { x = 12, y = 14, w = 12, h = 7 }
+                    id         = 6
+                    title      = "🔌 Bedrock 회로차단기 상태"
+                    type       = "stat"
+                    gridPos    = { x = 12, y = 14, w = 12, h = 7 }
                     datasource = { type = "prometheus", uid = "prometheus" }
                     fieldConfig = {
                       defaults = {
@@ -1128,9 +1139,9 @@ resource "helm_release" "kube_prometheus_stack" {
                       }
                     }
                     options = {
-                      textMode   = "value"
-                      colorMode  = "value"
-                      graphMode  = "none"
+                      textMode  = "value"
+                      colorMode = "value"
+                      graphMode = "none"
                       text = {
                         valueSize = 28
                       }
@@ -1144,10 +1155,10 @@ resource "helm_release" "kube_prometheus_stack" {
                     ]
                   },
                   {
-                    id      = 7
-                    title   = "🤖 AI 예측 처리량 (req/s)"
-                    type    = "timeseries"
-                    gridPos = { x = 0, y = 21, w = 12, h = 7 }
+                    id         = 7
+                    title      = "🤖 AI 예측 처리량 (req/s)"
+                    type       = "timeseries"
+                    gridPos    = { x = 0, y = 21, w = 12, h = 7 }
                     datasource = { type = "prometheus", uid = "prometheus" }
                     fieldConfig = {
                       defaults = {
@@ -1171,10 +1182,10 @@ resource "helm_release" "kube_prometheus_stack" {
                     }]
                   },
                   {
-                    id      = 8
-                    title   = "🤖 AI 예측 지연 p95"
-                    type    = "timeseries"
-                    gridPos = { x = 12, y = 21, w = 12, h = 7 }
+                    id         = 8
+                    title      = "🤖 AI 예측 지연 p95"
+                    type       = "timeseries"
+                    gridPos    = { x = 12, y = 21, w = 12, h = 7 }
                     datasource = { type = "prometheus", uid = "prometheus" }
                     fieldConfig = {
                       defaults = {
@@ -1199,10 +1210,10 @@ resource "helm_release" "kube_prometheus_stack" {
                     }]
                   },
                   {
-                    id      = 9
-                    title   = "🤖 모델 캐시 적중률 (%)"
-                    type    = "timeseries"
-                    gridPos = { x = 0, y = 28, w = 12, h = 7 }
+                    id         = 9
+                    title      = "🤖 모델 캐시 적중률 (%)"
+                    type       = "timeseries"
+                    gridPos    = { x = 0, y = 28, w = 12, h = 7 }
                     datasource = { type = "prometheus", uid = "prometheus" }
                     fieldConfig = {
                       defaults = {
@@ -1221,14 +1232,14 @@ resource "helm_release" "kube_prometheus_stack" {
                     }]
                   },
                   {
-                    id      = 10
-                    title   = "🤖 예측 정확도 MAPE (%)"
-                    type    = "stat"
-                    gridPos = { x = 12, y = 28, w = 12, h = 7 }
+                    id         = 10
+                    title      = "🤖 예측 정확도 MAPE (%)"
+                    type       = "stat"
+                    gridPos    = { x = 12, y = 28, w = 12, h = 7 }
                     datasource = { type = "prometheus", uid = "prometheus" }
                     fieldConfig = {
                       defaults = {
-                        unit = "percent"
+                        unit     = "percent"
                         decimals = 1
                         thresholds = {
                           mode = "absolute"
@@ -1320,9 +1331,9 @@ resource "helm_release" "kube_prometheus_stack" {
               name = "stockops.pod"
               rules = [
                 {
-                  alert = "PodFailed"
-                  expr  = "count(kube_pod_status_phase{phase='Failed', namespace='stockops'} == 1) > 0 or count(kube_pod_container_status_waiting_reason{reason='ImagePullBackOff', namespace='stockops'} == 1) > 0"
-                  for   = "1m"
+                  alert  = "PodFailed"
+                  expr   = "count(kube_pod_status_phase{phase='Failed', namespace='stockops'} == 1) > 0 or count(kube_pod_container_status_waiting_reason{reason='ImagePullBackOff', namespace='stockops'} == 1) > 0"
+                  for    = "1m"
                   labels = { severity = "critical" }
                   annotations = {
                     summary     = "StockOps Pod 장애 발생"
@@ -1330,9 +1341,9 @@ resource "helm_release" "kube_prometheus_stack" {
                   }
                 },
                 {
-                  alert = "PodRestartHigh"
-                  expr  = "sum(kube_pod_container_status_restarts_total{namespace='stockops'}) by (pod) > 3"
-                  for   = "1m"
+                  alert  = "PodRestartHigh"
+                  expr   = "sum(kube_pod_container_status_restarts_total{namespace='stockops'}) by (pod) > 3"
+                  for    = "1m"
                   labels = { severity = "warning" }
                   annotations = {
                     summary     = "Pod 재시작 횟수 초과"
@@ -1345,9 +1356,9 @@ resource "helm_release" "kube_prometheus_stack" {
               name = "stockops.node"
               rules = [
                 {
-                  alert = "NodeCPUHigh"
-                  expr  = "100 - (avg by(instance) (irate(node_cpu_seconds_total{mode='idle'}[5m])) * 100) > 80"
-                  for   = "3m"
+                  alert  = "NodeCPUHigh"
+                  expr   = "100 - (avg by(instance) (irate(node_cpu_seconds_total{mode='idle'}[5m])) * 100) > 80"
+                  for    = "3m"
                   labels = { severity = "critical" }
                   annotations = {
                     summary     = "노드 CPU 과부하"
@@ -1355,9 +1366,9 @@ resource "helm_release" "kube_prometheus_stack" {
                   }
                 },
                 {
-                  alert = "NodeMemoryHigh"
-                  expr  = "100 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes * 100) > 85"
-                  for   = "3m"
+                  alert  = "NodeMemoryHigh"
+                  expr   = "100 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes * 100) > 85"
+                  for    = "3m"
                   labels = { severity = "critical" }
                   annotations = {
                     summary     = "노드 메모리 과부하"
