@@ -280,7 +280,7 @@ resource "helm_release" "kube_prometheus_stack" {
                       }
                     }
                     targets = [{
-                      expr         = "label_replace(100 - (avg by(instance) (irate(node_cpu_seconds_total{mode='idle'}[5m])) * 100), \"node\", \"$1\", \"instance\", \"([^:]+):.*\")"
+                      expr         = "label_replace((100 - (avg by(instance) (irate(node_cpu_seconds_total{mode='idle'}[5m])) * 100)) and on(instance) (up{job=\"node-exporter\"} == 1), \"node\", \"$1\", \"instance\", \"([^:]+):.*\")"
                       legendFormat = "{{node}}"
                     }]
                   },
@@ -306,7 +306,7 @@ resource "helm_release" "kube_prometheus_stack" {
                       }
                     }
                     targets = [{
-                      expr         = "label_replace(100 - (avg by(instance) (node_memory_MemAvailable_bytes) / avg by(instance) (node_memory_MemTotal_bytes) * 100), \"node\", \"$1\", \"instance\", \"([^:]+):.*\")"
+                      expr         = "label_replace((100 - (avg by(instance) (node_memory_MemAvailable_bytes) / avg by(instance) (node_memory_MemTotal_bytes) * 100)) and on(instance) (up{job=\"node-exporter\"} == 1), \"node\", \"$1\", \"instance\", \"([^:]+):.*\")"
                       legendFormat = "{{node}}"
                     }]
                   },
@@ -1273,35 +1273,6 @@ resource "helm_release" "kube_prometheus_stack" {
                     targets = [{
                       expr         = "sum(ai_model_cache_events_total{result=\"hit\"}) / sum(ai_model_cache_events_total) * 100 or vector(0)"
                       legendFormat = "캐시 적중률"
-                    }]
-                  },
-                  {
-                    id         = 10
-                    title      = "🤖 예측 정확도 MAPE (%)"
-                    type       = "stat"
-                    gridPos    = { x = 12, y = 28, w = 12, h = 7 }
-                    datasource = { type = "prometheus", uid = "$region" }
-                    fieldConfig = {
-                      defaults = {
-                        unit     = "percent"
-                        decimals = 1
-                        thresholds = {
-                          mode = "absolute"
-                          steps = [
-                            { color = "green", value = null },
-                            { color = "yellow", value = 20 },
-                            { color = "red", value = 50 }
-                          ]
-                        }
-                      }
-                    }
-                    options = {
-                      colorMode = "value"
-                      text      = { valueSize = 28 }
-                    }
-                    targets = [{
-                      expr    = "sum(ai_evaluation_mape_percent_sum) / sum(ai_evaluation_mape_percent_count)"
-                      instant = true
                     }]
                   }
                 ]
