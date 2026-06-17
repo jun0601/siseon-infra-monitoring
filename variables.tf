@@ -10,6 +10,12 @@ variable "cluster_name" {
   default     = "seoul-cluster"
 }
 
+variable "ohio_cluster_name" {
+  description = "오하이오 EKS 클러스터 이름 (멀티리전 메트릭)"
+  type        = string
+  default     = "ohio-cluster"
+}
+
 variable "project_name" {
   description = "프로젝트 이름"
   type        = string

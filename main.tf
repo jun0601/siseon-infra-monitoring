@@ -97,6 +97,12 @@ resource "helm_release" "kube_prometheus_stack" {
                 isDefault = true
               },
               {
+                name = "Prometheus-Ohio"
+                type = "prometheus"
+                uid  = "prometheus-ohio"
+                url  = local.ohio_prometheus_url
+              },
+              {
                 name = "CloudWatch"
                 type = "cloudwatch"
                 uid  = "cloudwatch"
@@ -243,10 +249,10 @@ resource "helm_release" "kube_prometheus_stack" {
                       name       = "region"
                       type       = "custom"
                       label      = "🌐 리전"
-                      query      = "서울 : seoul,미국(오하이오) : ohio"
+                      query      = "서울 : prometheus,미국(오하이오) : prometheus-ohio"
                       includeAll = false
                       multi      = false
-                      current    = { text = "서울", value = "seoul" }
+                      current    = { text = "서울", value = "prometheus" }
                     }
                   ]
                 }
@@ -257,7 +263,7 @@ resource "helm_release" "kube_prometheus_stack" {
                     title      = "🖥️ 노드별 CPU 사용률"
                     type       = "gauge"
                     gridPos    = { x = 0, y = 0, w = 12, h = 6 }
-                    datasource = { type = "prometheus", uid = "prometheus" }
+                    datasource = { type = "prometheus", uid = "$region" }
                     fieldConfig = {
                       defaults = {
                         min  = 0
@@ -283,7 +289,7 @@ resource "helm_release" "kube_prometheus_stack" {
                     title      = "💾 노드별 메모리 사용률"
                     type       = "gauge"
                     gridPos    = { x = 12, y = 0, w = 12, h = 6 }
-                    datasource = { type = "prometheus", uid = "prometheus" }
+                    datasource = { type = "prometheus", uid = "$region" }
                     fieldConfig = {
                       defaults = {
                         min  = 0
@@ -309,7 +315,7 @@ resource "helm_release" "kube_prometheus_stack" {
                     title      = "✅ Running Pods"
                     type       = "stat"
                     gridPos    = { x = 0, y = 6, w = 6, h = 5 }
-                    datasource = { type = "prometheus", uid = "prometheus" }
+                    datasource = { type = "prometheus", uid = "$region" }
                     fieldConfig = {
                       defaults = {
                         unit = "short"
@@ -329,7 +335,7 @@ resource "helm_release" "kube_prometheus_stack" {
                     title      = "🚨 Failed Pods"
                     type       = "stat"
                     gridPos    = { x = 6, y = 6, w = 6, h = 5 }
-                    datasource = { type = "prometheus", uid = "prometheus" }
+                    datasource = { type = "prometheus", uid = "$region" }
                     fieldConfig = {
                       defaults = {
                         unit = "short"
@@ -352,7 +358,7 @@ resource "helm_release" "kube_prometheus_stack" {
                     title      = "🖧 Node 수"
                     type       = "stat"
                     gridPos    = { x = 12, y = 6, w = 6, h = 5 }
-                    datasource = { type = "prometheus", uid = "prometheus" }
+                    datasource = { type = "prometheus", uid = "$region" }
                     fieldConfig = {
                       defaults = {
                         unit = "short"
@@ -372,7 +378,7 @@ resource "helm_release" "kube_prometheus_stack" {
                     title      = "⏳ Pending Pods"
                     type       = "stat"
                     gridPos    = { x = 18, y = 6, w = 6, h = 5 }
-                    datasource = { type = "prometheus", uid = "prometheus" }
+                    datasource = { type = "prometheus", uid = "$region" }
                     fieldConfig = {
                       defaults = {
                         unit = "short"
@@ -395,7 +401,7 @@ resource "helm_release" "kube_prometheus_stack" {
                     title      = "⚡ StockOps Pod CPU 사용률"
                     type       = "timeseries"
                     gridPos    = { x = 0, y = 11, w = 12, h = 6 }
-                    datasource = { type = "prometheus", uid = "prometheus" }
+                    datasource = { type = "prometheus", uid = "$region" }
                     fieldConfig = {
                       defaults = {
                         unit = "percent"
@@ -422,7 +428,7 @@ resource "helm_release" "kube_prometheus_stack" {
                     title      = "💡 StockOps Pod 메모리 사용량"
                     type       = "timeseries"
                     gridPos    = { x = 12, y = 11, w = 12, h = 6 }
-                    datasource = { type = "prometheus", uid = "prometheus" }
+                    datasource = { type = "prometheus", uid = "$region" }
                     fieldConfig = {
                       defaults = {
                         unit = "bytes"
@@ -453,7 +459,7 @@ resource "helm_release" "kube_prometheus_stack" {
                     title      = "📥 네트워크 수신 트래픽"
                     type       = "timeseries"
                     gridPos    = { x = 0, y = 17, w = 12, h = 6 }
-                    datasource = { type = "prometheus", uid = "prometheus" }
+                    datasource = { type = "prometheus", uid = "$region" }
                     fieldConfig = {
                       defaults = {
                         unit = "binBps"
@@ -480,7 +486,7 @@ resource "helm_release" "kube_prometheus_stack" {
                     title      = "📤 네트워크 송신 트래픽"
                     type       = "timeseries"
                     gridPos    = { x = 12, y = 17, w = 12, h = 6 }
-                    datasource = { type = "prometheus", uid = "prometheus" }
+                    datasource = { type = "prometheus", uid = "$region" }
                     fieldConfig = {
                       defaults = {
                         unit = "binBps"
@@ -507,7 +513,7 @@ resource "helm_release" "kube_prometheus_stack" {
                     title      = "🔄 Pod 재시작 횟수"
                     type       = "table"
                     gridPos    = { x = 0, y = 23, w = 12, h = 6 }
-                    datasource = { type = "prometheus", uid = "prometheus" }
+                    datasource = { type = "prometheus", uid = "$region" }
                     targets = [{
                       expr         = "sum(kube_pod_container_status_restarts_total{namespace='stockops'}) by (pod)"
                       legendFormat = "{{pod}}"
@@ -519,7 +525,7 @@ resource "helm_release" "kube_prometheus_stack" {
                     title      = "🟢 Node 상태"
                     type       = "table"
                     gridPos    = { x = 12, y = 23, w = 12, h = 6 }
-                    datasource = { type = "prometheus", uid = "prometheus" }
+                    datasource = { type = "prometheus", uid = "$region" }
                     fieldConfig = {
                       defaults = {
                         thresholds = {
@@ -542,7 +548,7 @@ resource "helm_release" "kube_prometheus_stack" {
                     title      = "📋 StockOps 서비스별 Pod 상태"
                     type       = "table"
                     gridPos    = { x = 0, y = 29, w = 24, h = 5 }
-                    datasource = { type = "prometheus", uid = "prometheus" }
+                    datasource = { type = "prometheus", uid = "$region" }
                     targets = [
                       {
                         expr         = "kube_pod_status_phase{namespace='stockops', phase='Running'} == 1"
@@ -983,10 +989,10 @@ resource "helm_release" "kube_prometheus_stack" {
                       name       = "region"
                       type       = "custom"
                       label      = "🌐 리전"
-                      query      = "서울 : seoul,미국(오하이오) : ohio"
+                      query      = "서울 : prometheus,미국(오하이오) : prometheus-ohio"
                       includeAll = false
                       multi      = false
-                      current    = { text = "서울", value = "seoul" }
+                      current    = { text = "서울", value = "prometheus" }
                     }
                   ]
                 }
@@ -997,7 +1003,7 @@ resource "helm_release" "kube_prometheus_stack" {
                     title      = "🚀 API 처리량 (req/s)"
                     type       = "timeseries"
                     gridPos    = { x = 0, y = 0, w = 12, h = 7 }
-                    datasource = { type = "prometheus", uid = "prometheus" }
+                    datasource = { type = "prometheus", uid = "$region" }
                     fieldConfig = {
                       defaults = {
                         unit = "reqps"
@@ -1024,7 +1030,7 @@ resource "helm_release" "kube_prometheus_stack" {
                     title      = "❌ 에러율 (%)"
                     type       = "timeseries"
                     gridPos    = { x = 12, y = 0, w = 12, h = 7 }
-                    datasource = { type = "prometheus", uid = "prometheus" }
+                    datasource = { type = "prometheus", uid = "$region" }
                     fieldConfig = {
                       defaults = {
                         unit = "percent"
@@ -1053,7 +1059,7 @@ resource "helm_release" "kube_prometheus_stack" {
                     title      = "⏱️ 평균 응답시간"
                     type       = "timeseries"
                     gridPos    = { x = 0, y = 7, w = 12, h = 7 }
-                    datasource = { type = "prometheus", uid = "prometheus" }
+                    datasource = { type = "prometheus", uid = "$region" }
                     fieldConfig = {
                       defaults = {
                         unit = "s"
@@ -1088,7 +1094,7 @@ resource "helm_release" "kube_prometheus_stack" {
                     title      = "🧠 JVM 힙 메모리"
                     type       = "timeseries"
                     gridPos    = { x = 12, y = 7, w = 12, h = 7 }
-                    datasource = { type = "prometheus", uid = "prometheus" }
+                    datasource = { type = "prometheus", uid = "$region" }
                     fieldConfig = {
                       defaults = {
                         unit = "bytes"
@@ -1121,7 +1127,7 @@ resource "helm_release" "kube_prometheus_stack" {
                     title      = "🗄️ DB 커넥션 풀 (HikariCP)"
                     type       = "timeseries"
                     gridPos    = { x = 0, y = 14, w = 12, h = 7 }
-                    datasource = { type = "prometheus", uid = "prometheus" }
+                    datasource = { type = "prometheus", uid = "$region" }
                     fieldConfig = {
                       defaults = {
                         unit = "short"
@@ -1158,7 +1164,7 @@ resource "helm_release" "kube_prometheus_stack" {
                     title      = "🔌 Bedrock 회로차단기 상태"
                     type       = "stat"
                     gridPos    = { x = 12, y = 14, w = 12, h = 7 }
-                    datasource = { type = "prometheus", uid = "prometheus" }
+                    datasource = { type = "prometheus", uid = "$region" }
                     fieldConfig = {
                       defaults = {
                         unit = "short"
@@ -1197,7 +1203,7 @@ resource "helm_release" "kube_prometheus_stack" {
                     title      = "🤖 AI 예측 처리량 (req/s)"
                     type       = "timeseries"
                     gridPos    = { x = 0, y = 21, w = 12, h = 7 }
-                    datasource = { type = "prometheus", uid = "prometheus" }
+                    datasource = { type = "prometheus", uid = "$region" }
                     fieldConfig = {
                       defaults = {
                         unit = "reqps"
@@ -1224,7 +1230,7 @@ resource "helm_release" "kube_prometheus_stack" {
                     title      = "🤖 AI 예측 지연 p95"
                     type       = "timeseries"
                     gridPos    = { x = 12, y = 21, w = 12, h = 7 }
-                    datasource = { type = "prometheus", uid = "prometheus" }
+                    datasource = { type = "prometheus", uid = "$region" }
                     fieldConfig = {
                       defaults = {
                         unit = "s"
@@ -1252,7 +1258,7 @@ resource "helm_release" "kube_prometheus_stack" {
                     title      = "🤖 모델 캐시 적중률 (%)"
                     type       = "timeseries"
                     gridPos    = { x = 0, y = 28, w = 12, h = 7 }
-                    datasource = { type = "prometheus", uid = "prometheus" }
+                    datasource = { type = "prometheus", uid = "$region" }
                     fieldConfig = {
                       defaults = {
                         unit = "percent"
@@ -1274,7 +1280,7 @@ resource "helm_release" "kube_prometheus_stack" {
                     title      = "🤖 예측 정확도 MAPE (%)"
                     type       = "stat"
                     gridPos    = { x = 12, y = 28, w = 12, h = 7 }
-                    datasource = { type = "prometheus", uid = "prometheus" }
+                    datasource = { type = "prometheus", uid = "$region" }
                     fieldConfig = {
                       defaults = {
                         unit     = "percent"
