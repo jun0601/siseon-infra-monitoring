@@ -1298,13 +1298,27 @@ resource "helm_release" "kube_prometheus_stack" {
                 templating = {
                   list = [
                     {
-                      name       = "waf_target"
+                      name       = "waf_region"
                       type       = "custom"
                       label      = "🌐 WAF 대상"
-                      query      = "aws-waf-logs-stockops-alb-seoul : ap-northeast-2,aws-waf-logs-stockops-alb-ohio : us-east-2,aws-waf-logs-stockops-cloudfront : us-east-1"
+                      query      = "서울 ALB : ap-northeast-2,오하이오 ALB : us-east-2,CloudFront : us-east-1"
                       includeAll = false
                       multi      = false
-                      current    = { text = "aws-waf-logs-stockops-alb-seoul", value = "ap-northeast-2" }
+                      current    = { text = "서울 ALB", value = "ap-northeast-2" }
+                    },
+                    {
+                      name       = "waf_lg"
+                      type       = "query"
+                      datasource = { type = "cloudwatch", uid = "cloudwatch" }
+                      query = {
+                        queryType      = "logGroups"
+                        region         = "$waf_region"
+                        logGroupPrefix = "aws-waf-logs-stockops"
+                      }
+                      hide       = 2
+                      refresh    = 1
+                      includeAll = false
+                      multi      = false
                     }
                   ]
                 }
@@ -1329,8 +1343,8 @@ resource "helm_release" "kube_prometheus_stack" {
                     targets = [
                       {
                         refId         = "A"
-                        region        = "$waf_target"
-                        logGroupNames = ["$${waf_target:text}"]
+                        region        = "$waf_region"
+                        logGroupNames = ["$waf_lg"]
                         queryMode     = "Logs"
                         expression    = "filter action = \"BLOCK\" | stats count() as v"
                       }
@@ -1355,8 +1369,8 @@ resource "helm_release" "kube_prometheus_stack" {
                     targets = [
                       {
                         refId         = "A"
-                        region        = "$waf_target"
-                        logGroupNames = ["$${waf_target:text}"]
+                        region        = "$waf_region"
+                        logGroupNames = ["$waf_lg"]
                         queryMode     = "Logs"
                         expression    = "filter labels.0.name like /awswaf:managed/ | stats count() as v"
                       }
@@ -1381,8 +1395,8 @@ resource "helm_release" "kube_prometheus_stack" {
                     targets = [
                       {
                         refId         = "A"
-                        region        = "$waf_target"
-                        logGroupNames = ["$${waf_target:text}"]
+                        region        = "$waf_region"
+                        logGroupNames = ["$waf_lg"]
                         queryMode     = "Logs"
                         expression    = "stats count_distinct(httpRequest.clientIp) as v"
                       }
@@ -1397,8 +1411,8 @@ resource "helm_release" "kube_prometheus_stack" {
                     targets = [
                       {
                         refId         = "A"
-                        region        = "$waf_target"
-                        logGroupNames = ["$${waf_target:text}"]
+                        region        = "$waf_region"
+                        logGroupNames = ["$waf_lg"]
                         queryMode     = "Logs"
                         expression    = "filter action = \"BLOCK\" | stats count() as blocks by terminatingRuleId | sort blocks desc"
                       }
@@ -1413,8 +1427,8 @@ resource "helm_release" "kube_prometheus_stack" {
                     targets = [
                       {
                         refId         = "A"
-                        region        = "$waf_target"
-                        logGroupNames = ["$${waf_target:text}"]
+                        region        = "$waf_region"
+                        logGroupNames = ["$waf_lg"]
                         queryMode     = "Logs"
                         expression    = "filter @message like /awswaf:managed/ | parse @message /\"name\":\"(?<attackRule>awswaf:managed:[^\"]+)\"/ | stats count() as detections by attackRule | sort detections desc"
                       }
@@ -1429,8 +1443,8 @@ resource "helm_release" "kube_prometheus_stack" {
                     targets = [
                       {
                         refId         = "A"
-                        region        = "$waf_target"
-                        logGroupNames = ["$${waf_target:text}"]
+                        region        = "$waf_region"
+                        logGroupNames = ["$waf_lg"]
                         queryMode     = "Logs"
                         expression    = "stats count() as requests by httpRequest.clientIp | sort requests desc | limit 10"
                       }
@@ -1446,8 +1460,8 @@ resource "helm_release" "kube_prometheus_stack" {
                     targets = [
                       {
                         refId         = "A"
-                        region        = "$waf_target"
-                        logGroupNames = ["$${waf_target:text}"]
+                        region        = "$waf_region"
+                        logGroupNames = ["$waf_lg"]
                         queryMode     = "Logs"
                         expression    = "fields @timestamp, action, terminatingRuleId, httpRequest.clientIp, httpRequest.uri, httpRequest.country | sort @timestamp desc | limit 100"
                       }
