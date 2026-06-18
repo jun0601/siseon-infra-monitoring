@@ -1192,7 +1192,7 @@ resource "helm_release" "kube_prometheus_stack" {
                     }
                     targets = [
                       {
-                        expr         = "resilience4j_circuitbreaker_state{application=\"stockops\",name=\"bedrock\",state=\"open\"}"
+                        expr         = "max(resilience4j_circuitbreaker_state{application=\"stockops\",name=\"bedrock\",state=\"open\"})"
                         legendFormat = "상태"
                         instant      = true
                       }
