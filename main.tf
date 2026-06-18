@@ -58,11 +58,12 @@ resource "helm_release" "kube_prometheus_stack" {
           ingressClassName = "alb"
           hosts            = ["grafana.siseon.live"]
           annotations = {
-            "alb.ingress.kubernetes.io/scheme"          = "internet-facing"
-            "alb.ingress.kubernetes.io/target-type"     = "ip"
-            "alb.ingress.kubernetes.io/listen-ports"    = "[{\"HTTP\": 80}, {\"HTTPS\": 443}]"
-            "alb.ingress.kubernetes.io/ssl-redirect"    = "443"
-            "alb.ingress.kubernetes.io/certificate-arn" = data.terraform_remote_state.seoul.outputs.acm_certificate_arn_seoul
+            "alb.ingress.kubernetes.io/scheme"           = "internet-facing"
+            "alb.ingress.kubernetes.io/target-type"      = "ip"
+            "alb.ingress.kubernetes.io/listen-ports"     = "[{\"HTTP\": 80}, {\"HTTPS\": 443}]"
+            "alb.ingress.kubernetes.io/ssl-redirect"     = "443"
+            "alb.ingress.kubernetes.io/certificate-arn"  = data.terraform_remote_state.seoul.outputs.acm_certificate_arn_seoul
+            "alb.ingress.kubernetes.io/healthcheck-path" = "/api/health"
           }
         }
 
