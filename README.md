@@ -34,10 +34,14 @@ Grafana 데이터소스
 ├── Prometheus   → 인프라 메트릭 (공식 템플릿 + 커스텀)
 └── CloudWatch   → 애플리케이션 로그 (추후 연동)
         ↓
-AWS NLB (internet-facing)
+AWS ALB Ingress (LBC) + ACM 와일드카드 인증서
+        ↓
+https://grafana.siseon.live (HTTPS)
         ↓
 외부 접속 (브라우저)
 ```
+
+> 외부 노출은 초기 NLB(http) 방식에서 **ALB Ingress(LBC) + ACM 와일드카드(`*.siseon.live`) HTTPS**로 전환했다. Grafana는 admin 로그인이 있어 평문 노출을 막기 위함이며, Route 53 alias(`grafana.siseon.live`)를 Terraform이 직접 관리한다. (진우 인프라의 ACM ARN·Route 53 zone_id는 `terraform_remote_state`로 읽기만 함)
 
 ---
 
@@ -165,7 +169,7 @@ siseon-infra-monitoring/
 | 모니터링 스택 | kube-prometheus-stack v58.0.0 |
 | 메트릭 수집 | Prometheus + Node Exporter + kube-state-metrics |
 | 시각화 | Grafana v10.4.0 |
-| 로드밸런서 | AWS NLB (internet-facing) |
+| 로드밸런서 | AWS ALB Ingress (LBC) + ACM 와일드카드 HTTPS |
 | 배포 방식 | Helm (Terraform Helm Provider) |
 | 알림 | Gmail SMTP (Alertmanager) |
 
